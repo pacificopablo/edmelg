@@ -4,7 +4,6 @@ import plotly.graph_objects as go
 import math
 import json
 import os
-import uuid
 
 # Set up logging with INFO level
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -360,7 +359,7 @@ def advanced_bet_selection(state, mode='Conservative'):
     if streak_length >= 3 and streak_value != "Tie":
         streak_score = min(25 + (streak_length - 3) * 8, 50)
         if streak_length >= 6:
-            streak_score += 10
+            streak_score += 25
             pattern_insights.append(f"Dragon Tail: {streak_length} {streak_value}")
             emotional_tone = "Confident"
         scores[streak_value] += streak_score
@@ -484,7 +483,7 @@ def advanced_bet_selection(state, mode='Conservative'):
         scores['Banker'] += (banker_ratio * 0.9) * 25
         scores['Player'] += (player_ratio * 1.0) * 25
         scores['Tie'] += (tie_ratio * 0.6) * 25 if tie_ratio > 0.25 else 0
-        reason_parts.append(f"Long-term: Banker {freq['Banker']}, Player {freq['Player']}, Tie {freq['Tie']}.")
+        reason_parts.append(f"Long-term: Banker {freq['Banker']}, Player {freq['Player']}, Tie {freq['Tie']}")
         pattern_insights.append(f"Frequency: B:{freq['Banker']}, P:{freq['Player']}, T:{freq['Tie']}")
 
     # Pattern coherence
@@ -494,7 +493,7 @@ def advanced_bet_selection(state, mode='Conservative'):
             coherence_bonus = 15 if pattern_count == 3 else 20
             max_bet = 'Banker' if scores['Banker'] > scores['Player'] else 'Player'
             scores[max_bet] += coherence_bonus
-            reason_parts.append(f"Multiple patterns align on {max_bet} (+{coherence_bonus} bonus).")
+            reason_parts.append(f"Multiple patterns align on {max_bet} (+{coherence_bonus} bonus)")
             pattern_insights.append(f"Coherence: {pattern_count} patterns align")
         else:
             confidence_penalty = 15
@@ -562,7 +561,7 @@ def money_management(state, strategy, bet_outcome=None):
         if bet_outcome == 'win':
             state.bet_amount = state.unit
         elif bet_outcome == 'loss':
-            state.bet_amount += state.unit
+            state.bet_amount = min(state.bet_amount + state.unit, max_bet)
         calculated_bet = state.bet_amount
     else:  # Flat Betting
         calculated_bet = state.unit
@@ -859,19 +858,19 @@ def main():
         # Input Game Results
         with st.expander("Input Game Results", expanded=True):
             logging.debug("Rendering Input Game Results")
-            cols = st.columns(4, gap="small")
+            cols = st.columns(4, gap="medium")
             with cols[0]:
                 if st.button("Player", key="player_button"):
                     st.session_state.state.history.append("Player")
-                    logging.debug("Added Player to history")
+                    logging.info("Added Player to history")
             with cols[1]:
                 if st.button("Banker", key="banker_button"):
                     st.session_state.state.history.append("Banker")
-                    logging.debug("Added Banker to history")
+                    logging.info("Added Banker to history")
             with cols[2]:
                 if st.button("Tie", key="tie_button"):
                     st.session_state.state.history.append("Tie")
-                    logging.debug("Added Tie to history")
+                    logging.info("Added Tie to history")
             with cols[3]:
                 undo_clicked = st.button("Undo", key="undo_button", disabled=len(st.session_state.state.history) == 0)
                 if undo_clicked:
@@ -916,7 +915,7 @@ def main():
                             grid[row][col] = f'<div class="pattern-circle" style="background-color: {color}; border-radius: 50%; border: 1px solid #ffffff;"></div>'
                 st.markdown('<div id="bead-bin-scroll" class="pattern-scroll">', unsafe_allow_html=True)
                 for row in grid:
-                    st.markdown(' '.join(row).strip(), unsafe_allow_html=True)
+                    st.markdown(''.join(row).strip(), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
                 if not st.session_state.state.history:
                     st.markdown("No results yet.")
@@ -939,8 +938,8 @@ def main():
                             elif outcome == 'T':
                                 row_display.append(f'<div class="pattern-circle" style="border: 2px solid #38a169; border-radius: 50%;"></div>')
                             else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(' '.join(row_display), unsafe_allow_html=True)
+                                row_display.append(' ')
+                        st.markdown(''.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.markdown("No Big Road data.")
@@ -963,8 +962,8 @@ def main():
                             elif outcome == 'B':
                                 row_display.append(f'<div class="pattern-circle" style="background-color: #3182ce; border-radius: 50%; border: 1px solid #666666;"></div>')
                             else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(' '.join(row_display), unsafe_allow_html=True)
+                                row_display.append(' ')
+                        st.markdown(''.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.markdown("No recent Big Eye data.")
@@ -987,8 +986,8 @@ def main():
                             elif outcome == 'B':
                                 row_display.append(f'<div class="pattern-circle" style="background-color: #3182ce; border-radius: 50%; border: 1px solid #666666;"></div>')
                             else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(' '.join(row_display), unsafe_allow_html=True)
+                                row_display.append(' ')
+                        st.markdown(''.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.markdown("No recent Cockroach data.")
@@ -1004,9 +1003,9 @@ def main():
                         color = '#38a169' if result == 'W' else '#e53e3e' if result == 'L' else '#3182ce'
                         row_display.append(f'<div class="pattern-circle" style="background-color: {color}; border-radius: 50%; border: 1px solid #666666;"></div>')
                     else:
-                        row_display.append(f'<div class="display-circle"></div>')
+                        row_display.append(' ')
                 st.markdown('<div id="win-loss-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                st.markdown(' '.join(row_display), unsafe_allow_html=True)
+                st.markdown(''.join(row_display), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
                 if not st.session_state.state.history:
                     st.markdown("No results yet.")
@@ -1033,7 +1032,7 @@ def main():
             min_bet = max(1.0, st.session_state.state.unit)
             if current_bankroll < min_bet:
                 st.markdown("**No Bet**: Insufficient bankroll.")
-                logging.info(f"Insufficient bankroll: {current_bankroll:.2f} < {min_bet:.2f}")
+                logging.warning(f"Insufficient bankroll: {current_bankroll:.2f} < {min_bet:.2f}")
                 bet = 'None'
                 confidence = 0
                 reason = f"Bankroll ({current_bankroll:.2f}) too low to place minimum bet ({min_bet:.2f})."
@@ -1053,7 +1052,6 @@ def main():
         # Bankroll Progress
         with st.expander("Bankroll Progress", expanded=True):
             logging.debug("Rendering Bankroll Progress")
-            st.markdown("Bankroll Progress")
             bankroll_progress, bet_sizes = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)
             if bankroll_progress:
                 st.markdown("### Bankroll Progress")
@@ -1061,8 +1059,8 @@ def main():
                 for i in range(total_hands):
                     hand_number = total_hands - i
                     val = bankroll_progress[total_hands - 1 - i]
-                    bet_size = bet_sizes[-1 - i]
-                    bet_display = f"Bet Size: {bet_size:.2f}" if bet_size > 0 else "No Bet"
+                    bet_size = bet_sizes[total_hands - 1 - i]
+                    bet_display = f"Bet ${bet_size:.2f}" if bet_size > 0 else "No Bet"
                     st.markdown(f"Hand {hand_number}: ${val:.2f} | {bet_display}")
                 st.markdown(f"**Current Bankroll**: ${bankroll_progress[-1]:.2f}")
 
@@ -1080,29 +1078,29 @@ def main():
                     )
                 )
                 fig.update_layout(
-                    title=dict(text="Bankroll Progression", x=0.5, xanchor='center'),
+                    title=dict(text="Bankroll Over Time", x=0.5, xanchor='center'),
                     xaxis_title="Hand",
                     yaxis_title="Bankroll ($)",
                     xaxis=dict(tickangle=45),
                     yaxis=dict(autorange=True),
-                    template="plotly",
+                    template="plotly_white",
                     height=400,
                     margin=dict(l=40, r=40, t=50, b=100)
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 logging.debug("Displayed Bankroll Chart")
             else:
-                st.markdown(f"**Current Bankroll: ${st.session_state.state.result_tracker:.2f}")
+                st.markdown(f"**Current Bankroll**: ${st.session_state.state.result_tracker:.2f}")
                 st.markdown("No bankroll history to display.")
                 logging.debug("No bankroll history to display")
 
         # Reset
         with st.expander("Reset", expanded=False):
             logging.debug("Rendering Reset")
-            if st.button("Reset Session", key="reset_session"):
+            if st.button("Reset Game", key="reset_button"):
                 final_bankroll = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)[0][-1] if st.session_state.state.history else st.session_state.state.result_tracker
                 new_state = BaccaratState()
-                new_state.result_tracker = max(1.0, final_bankroll))
+                new_state.result_tracker = max(1.0, final_bankroll)
                 new_state.unit = max(1.0, min(new_state.result_tracker, final_bankroll))
                 new_state.bet_amount = new_state.unit
                 st.session_state.state = new_state
@@ -1112,8 +1110,8 @@ def main():
                 st.rerun()
 
     except Exception as e:
-        logging.error(f"Error in main: {str(e)}", exc_info=True)
-        st.error(f"Unexpected error: {str(e)}. Please contact support.")
+        logging.error(f"Error: {str(e)}", exc_info=True)
+        st.error(f"Error: {str(e)}. Contact support")
 
 if __name__ == "__main__":
     main()
