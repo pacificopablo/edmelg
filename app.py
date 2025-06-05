@@ -186,26 +186,32 @@ def build_big_eye_boy(big_road_grid, num_cols):
     col = 0
     row = 0
 
+    if num_cols < 3:  # Need at least 3 columns for Big Eye Boy
+        logging.debug(f"build_big_eye_boy: Insufficient columns ({num_cols})")
+        return grid, 0
+
     for c in range(3, num_cols):
         if col >= max_cols:
             break
-        if c - 1 < 0 or c - 3 < 0:
-            logging.debug(f"build_big_eye_boy: Skipping column {c} due to insufficient history")
-            continue
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        third_last = [big_road_grid[r][c - 3] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        third_non_empty = next((i for i, x in enumerate(third_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and third_non_empty is not None:
-            if last_col[last_non_empty] == third_last[third_non_empty]:
-                grid[row][col] = 'R'
+        try:
+            last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
+            third_last = [big_road_grid[r][c - 3] for r in range(max_rows)]
+            last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
+            third_non_empty = next((i for i, x in enumerate(third_last) if x in ['P', 'B']), None)
+            if last_non_empty is not None and third_non_empty is not None:
+                if last_col[last_non_empty] == third_last[third_non_empty]:
+                    grid[row][col] = 'R'
+                else:
+                    grid[row][col] = 'B'
+                row += 1
+                if row >= max_rows:
+                    col += 1
+                    row = 0
             else:
-                grid[row][col] = 'B'
-            row += 1
-            if row >= max_rows:
                 col += 1
                 row = 0
-        else:
+        except IndexError as e:
+            logging.error(f"IndexError in build_big_eye_boy: c={c}, num_cols={num_cols}, error={e}")
             col += 1
             row = 0
     logging.debug(f"build_big_eye_boy: Columns used={col + 1 if row > 0 else col}")
@@ -218,26 +224,32 @@ def build_cockroach_pig(big_road_grid, num_cols):
     col = 0
     row = 0
 
+    if num_cols < 4:  # Need at least 4 columns for Cockroach Pig
+        logging.debug(f"build_cockroach_pig: Insufficient columns ({num_cols})")
+        return grid, 0
+
     for c in range(4, num_cols):
         if col >= max_cols:
             break
-        if c - 1 < 0 or c - 4 < 0:
-            logging.debug(f"build_cockroach_pig: Skipping column {c} due to insufficient history")
-            continue
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        fourth_last = [big_road_grid[r][c - 4] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        fourth_non_empty = next((i for i, x in enumerate(fourth_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and fourth_non_empty is not None:
-            if last_col[last_non_empty] == fourth_last[fourth_non_empty]:
-                grid[row][col] = 'R'
+        try:
+            last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
+            fourth_last = [big_road_grid[r][c - 4] for r in range(max_rows)]
+            last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
+            fourth_non_empty = next((i for i, x in enumerate(fourth_last) if x in ['P', 'B']), None)
+            if last_non_empty is not None and fourth_non_empty is not None:
+                if last_col[last_non_empty] == fourth_last[fourth_non_empty]:
+                    grid[row][col] = 'R'
+                else:
+                    grid[row][col] = 'B'
+                row += 1
+                if row >= max_rows:
+                    col += 1
+                    row = 0
             else:
-                grid[row][col] = 'B'
-            row += 1
-            if row >= max_rows:
                 col += 1
                 row = 0
-        else:
+        except IndexError as e:
+            logging.error(f"IndexError in build_cockroach_pig: c={c}, num_cols={num_cols}, error={e}")
             col += 1
             row = 0
     logging.debug(f"build_cockroach_pig: Columns used={col + 1 if row > 0 else col}")
@@ -262,7 +274,7 @@ def dominant_pairs_bet_selection(state):
         logging.debug("dominant_pairs_bet_selection: Last result was Tie")
         return 'Pass', 0, "Last result was a Tie. Waiting for Player or Banker.", "Cautious", []
 
-    # Save state for undo only if history has at least one result
+    # Save state for undo
     state_copy = {
         'pair_types': state.pair_types.copy(),
         'previous_result': state.previous_result,
@@ -291,8 +303,8 @@ def dominant_pairs_bet_selection(state):
 
     # Determine dominance and prediction after 5 pairs
     if len(state.pair_types) >= 5:
-        odd_count = sum(1 for a, b in state.pair_types if a != b)
-        even_count = sum(1 for a, b in state.pair_types if a == b)
+        odd_count = sum(1 for a, b in state.pair_types[-5:] for _ in range(1) if a != b)  # Limit to last 5 pairs
+        even_count = sum(1 for a, b in state.pair_types[-5:] for _ in range(1) if a == b)
         pattern_insights.append(f"Odd pairs: {odd_count}, Even pairs: {even_count}")
 
         # Integrate Big Road and Big Eye Boy
@@ -800,15 +812,15 @@ def main():
                     height: 24px;
                     display: inline-block;
                     margin: 2px;
-                    }
-                    .display-circle {
-                        width: 24px;
-                        height: 24px;
-                        display: inline-block;
-                        margin: 2px;
-                        border: 1px solid #ccc;
-                        border-radius: 50%;
-                    }
+                }
+                .display-circle {
+                    width: 24px;
+                    height: 24px;
+                    display: inline-block;
+                    margin: 2px;
+                    border: 1px solid #ccc;
+                    border-radius: 50%;
+                }
                 @media (max-width: 767px) {
                     h1 {
                         font-size: 2em;
@@ -885,16 +897,31 @@ def main():
             cols = st.columns([5, 5, 5, 3], gap="medium")
             with cols[0]:
                 if st.button("Player", key="player_button"):
-                    st.session_state.state.history.append("Player")
-                    logging.info("Added Player to history")
+                    try:
+                        st.session_state.state.history.append("Player")
+                        logging.info("Added Player to history")
+                        st.rerun()
+                    except Exception as e:
+                        logging.error(f"Error adding Player: {e}")
+                        st.error("Error adding result. Please try resetting or contact support.")
             with cols[1]:
                 if st.button("Banker", key="banker_button"):
-                    st.session_state.state.history.append("Banker")
-                    logging.info("Added Banker to history")
+                    try:
+                        st.session_state.state.history.append("Banker")
+                        logging.info("Added Banker to history")
+                        st.rerun()
+                    except Exception as e:
+                        logging.error(f"Error adding Banker: {e}")
+                        st.error("Error adding result. Please try resetting or contact support.")
             with cols[2]:
                 if st.button("Tie", key="tie_button"):
-                    st.session_state.state.history.append("Tie")
-                    logging.info("Added Tie to history")
+                    try:
+                        st.session_state.state.history.append("Tie")
+                        logging.info("Added Tie to history")
+                        st.rerun()
+                    except Exception as e:
+                        logging.error(f"Error adding Tie: {e}")
+                        st.error("Error adding result. Please try resetting or contact support.")
             with cols[3]:
                 undo_clicked = st.button("Undo", key="undo_button", disabled=len(st.session_state.state.history) == 0)
                 if undo_clicked:
@@ -902,27 +929,29 @@ def main():
                         st.warning("No history to undo!")
                         logging.warning("Undo attempted on empty history")
                     else:
-                        st.session_state.state.history.pop()
-                        logging.info("Popped last result from history")
-                        if st.session_state.state.state_history:
-                            last_state = st.session_state.state.state_history.pop()
-                            st.session_state.state.pair_types = last_state['pair_types']
-                            st.session_state.state.previous_result = last_state.get('previous_result', None)
-                            st.session_state.state.bet_amount = last_state.get('bet_amount', None)
-                            st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
-                            st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
-                            logging.info("Restored last state from undo")
-                        else:
-                            st.session_state.state.pair_types = []
-                            st.session_state.state.previous_result = None
-                            st.session_state.state.bet_amount = st.session_state.state.unit
-                            logging.warning("No state history, restoring state")
-                            st.session_state.state.current_dominance = 'N/A'
-                            st.session_state.state.next_prediction = 'N/A'
-                            logging.info("Reset of state variables")
-                            if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
-                                st.session_state.state.t3_results.pop()
-                                logging.info("Removed last T3 result")
+                        try:
+                            st.session_state.state.history.pop()
+                            if st.session_state.state.state_history:
+                                last_state = st.session_state.state.state_history.pop()
+                                st.session_state.state.pair_types = last_state['pair_types']
+                                st.session_state.state.previous_result = last_state.get('previous_result', None)
+                                st.session_state.state.bet_amount = last_state.get('bet_amount', st.session_state.state.unit)
+                                st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
+                                st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
+                                if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
+                                    st.session_state.state.t3_results.pop()
+                                logging.info("Undo successful")
+                            else:
+                                st.session_state.state.pair_types = []
+                                st.session_state.state.previous_result = None
+                                st.session_state.state.bet_amount = st.session_state.state.unit
+                                st.session_state.state.current_dominance = 'N/A'
+                                st.session_state.state.next_prediction = 'N/A'
+                                logging.info("Reset state due to empty state_history")
+                            st.rerun()
+                        except Exception as e:
+                            logging.error(f"Error during undo: {e}")
+                            st.error("Error undoing action. Please try resetting or contact support.")
 
         # Betting Patterns
         with st.expander("Shoe Patterns", expanded=True):
@@ -1139,10 +1168,10 @@ def main():
 
     except IndexError as e:
         logging.error(f"Index error: {str(e)}", exc_info=True)
-        st.error(f"Error: List index out of range. Reset game or contact support.")
+        st.error("Error: List index out of range. Please reset the game or contact support.")
     except Exception as e:
         logging.error(f"Unexpected error: {str(e)}", exc_info=True)
-        st.error(f"Error: {str(e)}. Contact support.")
+        st.error(f"Error: {str(e)}. Please try resetting the game or contact support.")
 
 if __name__ == "__main__":
     main()
