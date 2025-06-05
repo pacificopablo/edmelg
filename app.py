@@ -5,8 +5,8 @@ import math
 import json
 import os
 
-# Set up logging with debug level for detailed diagnostics
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging with info level to reduce verbosity
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Unified state management class
 class BaccaratState:
@@ -43,7 +43,7 @@ class BaccaratState:
                     "t3_results": self.t3_results,
                     "money_management_strategy": self.money_management_strategy
                 }, f, indent=2)
-            logging.debug(f"Session saved to {filename}")
+            logging.info(f"Session saved to {filename}")
             return True
         except Exception as e:
             logging.error(f"Error saving session: {e}")
@@ -67,7 +67,7 @@ class BaccaratState:
                     self.t3_level = data.get("t3_level", 1)
                     self.t3_results = data.get("t3_results", [])
                     self.money_management_strategy = data.get("money_management_strategy", "Flat Betting")
-                logging.debug(f"Session loaded from {filename}")
+                logging.info(f"Session loaded from {filename}")
                 return True
             logging.warning(f"No session file found at {filename}")
             return False
@@ -257,7 +257,7 @@ def dominant_pairs_bet_selection(state):
     mapped_result = 'P' if result == 'Player' else 'B' if result == 'Banker' else None
     if mapped_result is None:
         logging.debug("dominant_pairs_bet_selection: Last result was Tie")
-        return 'Pass', 0, "Last result was a Tie. Waiting for Player or Banker.", "Cautious", []
+        return 'Pass', 0, "Last result was a Tie. Waiting for Player or Banker.", ".", ""
 
     # Save state for undo
     state_copy = {
@@ -275,13 +275,13 @@ def dominant_pairs_bet_selection(state):
     if state.previous_result is not None:
         pair = (state.previous_result, mapped_result)
         state.pair_types.append(pair)
-        pair_type = "Even" if pair[0] == pair[1] else "Odd"
+        pair_type = "Even" if pair[0] == pair[1] else "Odd'
         pattern_insights.append(f"Pair: {pair} ({pair_type})")
-        reason_parts.append(f"Recorded pair: {pair} ({pair_type})")
+        reason_parts.append(f"Added pair: {pair} ({pair_type})")
     else:
-        reason_parts.append("First result recorded. Waiting for second result.")
+        reason_parts.append("First result recorded.")
         state.previous_result = mapped_result
-        logging.debug("dominant_pairs_bet_selection: First result, no pair yet")
+        logging.debug("dominant_pairs_bet_selection: First result, no pair")
         return 'Pass', 0, " ".join(reason_parts), "Cautious", pattern_insights
 
     state.previous_result = mapped_result
@@ -484,7 +484,7 @@ def advanced_bet_selection(state, mode='Conservative'):
     if pattern_count >= 3:
         max_score = max(scores['Banker'], scores['Player'])
         if max_score > 0:
-            coherence_bonus = 15 if pattern_count == 3 else 15
+            coherence_bonus = 15 if pattern_count == 3 else 20
             max_bet = 'Banker' if scores['Banker'] > scores['Player'] else 'Player'
             scores[max_bet] += coherence_bonus
             reason_parts.append(f"Multiple patterns align on {max_bet} (+{coherence_bonus} bonus).")
@@ -493,11 +493,11 @@ def advanced_bet_selection(state, mode='Conservative'):
             confidence_penalty = 15
             for key in scores:
                 scores[key] = max(0, scores[key] - confidence_penalty)
-            reason_parts.append("Conflicting patterns detected.")
+            reason_parts.append("Conflicting patterns detected; reducing confidence.")
             emotional_tone = "Skeptical"
 
     bet_choice = max(scores, key=scores.get)
-    confidence = min(round(max(scores.values(), default=0.0) * 1.3), 95)
+    confidence = min(round(max(scores.values(), default=0) * 1.3), 95)
 
     confidence_threshold = 65 if mode == 'Conservative' else 45
     if confidence < confidence_threshold:
@@ -506,31 +506,31 @@ def advanced_bet_selection(state, mode='Conservative'):
         reason_parts.append(f"Confidence too low ({confidence}% < {confidence_threshold}%). Passing.")
     elif mode == 'Conservative' and confidence < 75:
         emotional_tone = "Cautious"
-        reason_parts.append("Moderate confidence level.")
+        reason_parts.append("Moderate confidence; proceeding cautiously.")
 
     if bet_choice == 'Tie' and (confidence < 85 or freq['Tie'] / total < 0.2):
         scores['Tie'] = 0
         bet_choice = max(scores, key=scores.get)
-        confidence = min(round(max(scores.values(), default=0.0) * 1.3), 95)
+        confidence = min(round(scores[bet_choice] * 1.3), 95)
         reason_parts.append("Tie bet too risky; switching to safer option.")
         emotional_tone = "Cautious"
 
-    if shoe_position >= 60:
-        confidence = max(confidence - 10, 0)
+    if shoe_position > 60:
+        confidence = max(confidence - 10, 40)
         reason_parts.append("Late in shoe; increasing caution.")
         emotional_tone = "Cautious"
 
     reason = " ".join(reason_parts)
-    logging.debug(f"advanced_bet_selection: Bet={bet}, Confidence={confidence}, Tone={emotional_tone}")
-    return bet, confidence, reason, emotional_tone, pattern_insights
+    logging.debug(f"advanced_bet_selection: Bet={bet_choice}, Confidence={confidence}, Tone={emotional_tone}")
+    return bet_choice, confidence, reason, emotional_tone, pattern_insights
 
-# Money Management
+# Money management
 def money_management(state, strategy, bet_outcome=None):
     min_bet = max(1.0, state.unit)
     max_bet = state.result_tracker
 
     if state.result_tracker < min_bet:
-        logging.warning(f"Bankroll ({state.result_tracker:.2f}) too low for minimum bet ({min_bet:.2f})")
+        logging.warning(f"Bankroll ({state.result_tracker:.2f}) is less than minimum bet ({min_bet:.2f}).")
         return 0.0
 
     if strategy == "T3":
@@ -541,7 +541,7 @@ def money_management(state, strategy, bet_outcome=None):
         elif bet_outcome == 'loss':
             state.t3_results.append('L')
 
-        if len(state.t3_results) >= 3:
+        if len(state.t3_results) == 3:
             wins = state.t3_results.count('W')
             losses = state.t3_results.count('L')
             if wins > losses:
@@ -549,6 +549,7 @@ def money_management(state, strategy, bet_outcome=None):
             elif losses > wins:
                 state.t3_level += 1
             state.t3_results = []
+
         calculated_bet = state.unit * state.t3_level
     elif strategy == "Dominant Pairs":
         if bet_outcome == 'win':
@@ -584,7 +585,7 @@ def calculate_bankroll(state, strategy, ai_mode):
         actual_result = current_rounds[i]
         mapped_result = 'P' if actual_result == 'Player' else 'B' if actual_result == 'Banker' else None
 
-        if bet in ('Pass', 'Tie', None) or actual_result == 'Tie':
+        if bet in (None, 'Pass', 'Tie') or actual_result == 'Tie':
             bankroll_progress.append(current_bankroll)
             bet_sizes.append(0.0)
             if mapped_result:
@@ -614,7 +615,6 @@ def calculate_bankroll(state, strategy, ai_mode):
             current_bankroll -= bet_size
             if strategy in ["T3", "Dominant Pairs"]:
                 money_management(temp_state, strategy, bet_outcome='loss')
-
         bankroll_progress.append(current_bankroll)
         if mapped_result:
             temp_state.previous_result = mapped_result
@@ -629,6 +629,7 @@ def calculate_bankroll(state, strategy, ai_mode):
     logging.debug(f"calculate_bankroll: Final bankroll={current_bankroll:.2f}, Progress length={len(bankroll_progress)}")
     return bankroll_progress, bet_sizes
 
+# Calculate win/loss tracker
 def calculate_win_loss_tracker(state, strategy, ai_mode):
     if not state.history:
         logging.debug("calculate_win_loss_tracker: No history")
@@ -640,41 +641,40 @@ def calculate_win_loss_tracker(state, strategy, ai_mode):
 
     for i in range(len(temp_state.history)):
         current_rounds = temp_state.history[:i + 1]
-        temp_state.history = current_rounds[:i]
-        bet, _, _ , _ , _ = advanced_bet_selection(temp_state, ai_mode) if i != 0 else ('Pass', 0, '', '', '')
+        temp_state.history = current_rounds[:-1]
+        bet, _, _, _, _ = advanced_bet_selection(temp_state, ai_mode) if i != 0 else ('Pass', 0, '', 'Neutral', [])
         actual_result = current_rounds[i]
         mapped_result = 'P' if actual_result == 'Player' else 'B' if actual_result == 'Banker' else None
 
         if actual_result == 'Tie':
             tracker.append('T')
-        elif bet in ('Pass', None):
-            tracker.append('Pass')
+        elif bet in (None, 'Pass'):
+            tracker.append('S')
         elif actual_result == bet:
             tracker.append('W')
             if strategy in ["T3", "Dominant Pairs"]:
-                money_management(temp_state, strategy, 'win')
+                money_management(temp_state, strategy, bet_outcome='win')
         else:
             tracker.append('L')
             if strategy in ["T3", "Dominant Pairs"]:
-                money_management(temp_state, strategy, 'loss')
-
+                money_management(temp_state, strategy, bet_outcome='loss')
         if mapped_result:
             temp_state.previous_result = mapped_result
         temp_state.history = current_rounds
 
-    logging.debug(f"calculate_win_loss_tracker: Tracker={tracker}")
+    logging.debug(f"calculate_win_loss_tracker: Tracker length={len(tracker)}")
     return tracker
 
 def main():
     try:
-        logging.debug("Starting main()")
+        logging.info("Starting main()")
         st.set_page_config(page_title="Mang Baccarat Predictor", page_icon="🎲", layout="wide")
         st.title("Mang Baccarat Predictor")
 
-        # Variables
+        # Initialize state
         if 'state' not in st.session_state:
             st.session_state.state = BaccaratState()
-            logging.debug("Initialized new BaccaratState")
+            logging.info("Initialized new BaccaratState")
         if 'ai_mode' not in st.session_state:
             st.session_state.ai_mode = "Conservative"
         if 'selected_pattern' not in st.session_state:
@@ -704,15 +704,15 @@ def main():
             window.onload = function() {
                 updateScreenWidth();
                 autoScrollPatterns();
-            }
+            };
             window.onresize = updateScreenWidth;
             </script>
             <input type="hidden" id="screen-width-input">
-            """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        screen_width_input = st.text_input("Screen Width", key="screen_width", value=str(st.session_state.screen_width), disabled=True)
+        screen_width_input = st.text_input("Screen Width", key="screen_width_input", value=str(st.session_state.screen_width), disabled=True)
         try:
-            st.session_state.screen_width = int(float(screen_width_input)) if screen_width_input.strip() and screen_width_input.replace('.', '').isdigit() else 1024
+            st.session_state.screen_width = int(screen_width_input) if screen_width_input.isdigit() else 1024
             logging.debug(f"Screen width set to {st.session_state.screen_width}")
         except ValueError:
             st.session_state.screen_width = 1024
@@ -724,7 +724,7 @@ def main():
             .pattern-scroll {
                 overflow-x: auto;
                 white-space: nowrap;
-                max-width: 100;
+                max-width: 100%;
                 padding: 10px;
                 border: 1px solid #e1e1e1;
                 background-color: #f9f9f9;
@@ -736,7 +736,6 @@ def main():
                 background-color: #888;
                 border-radius: 4px;
             }
-
             .stButton > button {
                 width: 100%;
                 padding: 8px;
@@ -779,7 +778,7 @@ def main():
                 }
                 p, div, span {
                     font-size: 0.9rem;
-            }
+                }
                 .pattern-circle, .display-circle {
                     width: 16px !important;
                     height: 16px !important;
@@ -796,7 +795,7 @@ def main():
                 }
             }
             </style>
-            """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
         # Game Settings
         with st.expander("Game Settings", expanded=False):
@@ -805,10 +804,10 @@ def main():
             with cols[0]:
                 initial_bankroll = st.number_input("Initial Bankroll", min_value=1.0, value=st.session_state.state.result_tracker, step=10.0, format="%.2f")
             with cols[1]:
-                base_bet = st.number_input("Base Bet (Unit Size)", min_value=1.0, max_value=initial_bankroll, value=10.0, step=0.0, step=1.0, format="%.2f")
+                base_bet = st.number_input("Base Bet (Unit Size)", min_value=1.0, max_value=initial_bankroll, value=st.session_state.state.unit, step=1.0, format="%.2f")
             with cols[2]:
                 strategy_options = ["Flat Betting", "T3", "Dominant Pairs"]
-                strategy = st.selectbox("Strategy", strategy_options, index=strategy_options.index(st.session_state.state.money_management_strategy))
+                strategy = st.selectbox("Money Management Strategy", strategy_options, index=strategy_options.index(st.session_state.state.money_management_strategy))
                 st.markdown("*Flat Betting: Fixed bet size. T3: Adjusts bet level based on last three outcomes. Dominant Pairs: Increases bet by one unit after loss, resets after win.*")
             with cols[3]:
                 ai_mode = st.selectbox("AI Mode", ["Conservative", "Aggressive", "Dominant Pairs"], index=["Conservative", "Aggressive", "Dominant Pairs"].index(st.session_state.ai_mode))
@@ -828,7 +827,7 @@ def main():
                 if st.button("Save Session"):
                     if st.session_state.state.save():
                         st.success("Session saved to baccarat_session.json")
-                        logging.debug("Session save successful")
+                        logging.info("Session save successful")
                     else:
                         st.error("Failed to save session.")
                         logging.error("Session save failed")
@@ -836,7 +835,7 @@ def main():
                 if st.button("Load Session"):
                     if st.session_state.state.load():
                         st.success("Session loaded from baccarat_session.json")
-                        logging.debug("Session load successful")
+                        logging.info("Session load successful")
                         st.rerun()
                     else:
                         st.error("No session file found or error loading.")
@@ -895,14 +894,14 @@ def main():
             if selected_pattern == "Bead Bin":
                 st.markdown("### Bead Bin")
                 sequence = [r for r in st.session_state.state.history][-84:]
-                sequence = ['P' if x == 'Player' else 'B' if x == 'Banker' else 'T' for x in sequence]
+                sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in sequence]
                 grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
-                for i, result in enumerate(sequence):
-                    if result in ['P', 'B', 'T']:
+                for i, r in enumerate(sequence):
+                    if r in ['P', 'B', 'T']:
                         col = i // 6
                         row = i % 6
                         if col < max_display_cols:
-                            color = '#3182ce' if result == 'P' else '#e53e3e' if result == 'B' else '#38a169'
+                            color = '#3182ce' if r == 'P' else '#e53e3e' if r == 'B' else '#38a169'
                             grid[row][col] = f'<div class="pattern-circle" style="background-color: {color}; border-radius: 50%; border: 1px solid #ffffff;"></div>'
                 st.markdown('<div id="bead-bin-scroll" class="pattern-scroll">', unsafe_allow_html=True)
                 for row in grid:
@@ -914,14 +913,14 @@ def main():
 
             elif selected_pattern == "Big Road":
                 st.markdown("### Big Road")
-                big_road_grid, num_cols = build_big_road(st.session_state.state.history)
+                big_grid, num_cols = build_big_road(st.session_state.state.history)
                 if num_cols > 0:
                     display_cols = min(num_cols, max_display_cols)
                     st.markdown('<div id="big-road-scroll" class="pattern-scroll">', unsafe_allow_html=True)
                     for row in range(6):
                         row_display = []
                         for col in range(display_cols):
-                            outcome = big_road_grid[row][col]
+                            outcome = big_grid[row][col]
                             if outcome == 'P':
                                 row_display.append(f'<div class="pattern-circle" style="background-color: #3182ce; border-radius: 50%; border: 1px solid #ffffff;"></div>')
                             elif outcome == 'B':
@@ -940,9 +939,9 @@ def main():
                 st.markdown("### Big Eye Boy")
                 st.markdown("<p style='font-size: 12px; color: #666666;'>Red (🔴): Repeat Pattern, Blue (🔵): Break Pattern</p>", unsafe_allow_html=True)
                 big_road_grid, num_cols = build_big_road(st.session_state.state.history)
-                big_eye_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
+                big_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
                 if big_eye_cols > 0:
-                    display_cols = min(big_eye_cols, max_display_cols)
+                    display_cols = min(big_eye_cols, max_cols_display_cols)
                     st.markdown('<div id="big-eye-scroll" class="pattern-scroll">', unsafe_allow_html=True)
                     for row in range(6):
                         row_display = []
@@ -966,14 +965,14 @@ def main():
                 big_road_grid, num_cols = build_big_road(st.session_state.state.history)
                 cockroach_grid, cockroach_cols = build_cockroach_pig(big_road_grid, num_cols)
                 if cockroach_cols > 0:
-                    display_cols = min(cockroach_cols, max_display_cols)
+                    display_cols = min(cockroach_cols, max_cols_display_cols)
                     st.markdown('<div id="cockroach-scroll" class="pattern-scroll">', unsafe_allow_html=True)
                     for row in range(6):
                         row_display = []
                         for col in range(display_cols):
                             outcome = cockroach_grid[row][col]
                             if outcome == 'R':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #e53e3e; border-radius: 50%; border: 1px solid #000000;"></div>')
+                                row_display.append(f'<div class="pattern-circle" style="background-color: #e53e3e; border-radius: 50%; border: 1px solid></div>#000000;')
                             elif outcome == 'B':
                                 row_display.append(f'<div class="pattern-circle" style="background-color: #3182ce; border-radius: 50%; border: 1px solid #000000;"></div>')
                             else:
@@ -1008,7 +1007,7 @@ def main():
                 for pair in st.session_state.state.pair_types[-100:]:
                     pair_type = "Even" if pair[0] == pair[1] else "Odd"
                     history_text += f"{pair} ({pair_type})\n"
-                st.text_area("Deal History", history_text, height=200, disabled=True)
+                st.text_area.append("Deal History", history_text, height=200, disabled=True)
                 if not st.session_state.state.pair_types:
                     st.markdown("No pair history yet.")
                     logging.debug("No Deal History data to display")
@@ -1018,7 +1017,7 @@ def main():
             logging.debug("Rendering Prediction")
             st.markdown("### Prediction")
             bet, confidence, reason, emotional_tone, pattern_insights = advanced_bet_selection(st.session_state.state, st.session_state.ai_mode)
-            current_bankroll = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)[0][-1] if st.session_state.state.history else st.session_state.state.result_tracker
+            current_bankroll = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy;;; st.session_state.ai_mode)[0][-1] if st.session_state.state.history else st.session_state.state.result_tracker
             recommended_bet_size = money_management(st.session_state.state, st.session_state.state.money_management_strategy)
             if current_bankroll < max(1.0, st.session_state.state.unit):
                 st.warning("Insufficient bankroll to place a bet.")
@@ -1026,18 +1025,17 @@ def main():
                 confidence = 0
                 reason = "Bankroll too low to continue betting."
                 emotional_tone = "Cautious"
-                logging.warning(f"Insufficient bankroll: {current_bankroll:.2f}")
             if bet == 'Pass' or bet is None:
                 st.markdown("**No Bet**: Insufficient confidence or bankroll.")
             else:
-                st.markdown(f"**Bet**: {bet} | Confidence: {confidence}% | Bet Size: ${recommended_bet_size:.2f} | Mood: {emotional_tone}")
+                st.markdown(f"**Bet**: {bet} | **Confidence**: {confidence}% | **Bet Size**: ${recommended_bet_size:.2f} | **Mood**: {emotional_tone}")
             st.markdown(f"**Reasoning**: {reason}")
             if pattern_insights:
                 st.markdown("### Pattern Insights")
                 st.markdown("Detected patterns influencing the prediction:")
                 for insight in pattern_insights:
-                    st.markdown(f"- {insight}")
-            logging.debug(f"Prediction: Bet={bet}, Confidence={confidence}, Reason={reason}")
+                    st.markdown(f"- {insight}')
+        logging.debug(f"Predictor Prediction: Bet={bet}, Confidence={confidence}, Reason={reason}")
 
         # Bankroll Progress
         with st.expander("Bankroll Progress", expanded=True):
@@ -1049,13 +1047,13 @@ def main():
                 for i in range(total_hands):
                     hand_number = total_hands - i
                     val = bankroll_progress[total_hands - i - 1]
-                    bet_size = bet_size = bet_sizes[total_hands - i - 1]
+                    bet_size = bet_sizes[total_hands - i - 1]
                     bet_display = f"Bet ${bet_size:.2f}" if bet_size > 0 else "No Bet"
                     st.markdown(f"Hand {hand_number}: ${val:.2f} | {bet_display}")
                 st.markdown(f"**Current Bankroll**: ${bankroll_progress[-1]:.2f}")
 
                 st.markdown("### Bankroll Progression Chart")
-                labels = [f"Hand {i+1}" for i in range(len(bankroll_progress))]
+                labels = [f"Hand {i+1}" for i in range(len(bankroll_progress))]]
                 fig = go.Figure()
                 fig.add_trace(
                     go.Scatter(
@@ -1071,7 +1069,7 @@ def main():
                     title=dict(text="Bankroll Over Time", x=0.5, xanchor='center'),
                     xaxis_title="Hand",
                     yaxis_title="Bankroll ($)",
-                    xaxis=dict(ticksangle=45),
+                    xaxis=dict(tickangle=45),
                     yaxis=dict(autorange=True),
                     template="plotly_white",
                     height=400,
@@ -1082,7 +1080,7 @@ def main():
             else:
                 st.markdown(f"**Current Bankroll**: ${st.session_state.state.result_tracker:.2f}")
                 st.markdown("No bankroll history yet.")
-                logging.debug("No bankroll history to display")
+                logging.debug("No bankroll data to display")
 
         # Reset
         with st.expander("Reset", expanded=False):
@@ -1096,7 +1094,7 @@ def main():
                 st.session_state.state.money_management_strategy = "Flat Betting"
                 st.session_state.ai_mode = "Conservative"
                 st.session_state.selected_pattern = "Bead Bin"
-                logging.debug("Game reset: New session started")
+                logging.info("Reset session started")
                 st.rerun()
 
     except Exception as e:
