@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import math
 import json
 import os
+import uuid
 
 # Set up logging with INFO level
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -156,6 +157,9 @@ def build_big_road(s):
     last_outcome = None
 
     for result in s:
+        if result not in ['Player', 'Banker', 'Tie']:
+            logging.warning(f"Invalid result in history: {result}")
+            continue
         mapped = 'P' if result == 'Player' else 'B' if result == 'Banker' else 'T'
         if mapped == 'T':
             if col < max_cols and row < max_rows and grid[row][col] == '':
@@ -511,7 +515,7 @@ def advanced_bet_selection(state, mode='Conservative'):
         emotional_tone = "Cautious"
         reason_parts.append("Moderate confidence; proceeding cautiously.")
 
-    if bet_choice == 'Tie' and (confidence < 85 or freq['Tie'] / total < 0.2):
+    if bet_choice == 'Tie' and (confidence < 85 or (total > 0 and freq['Tie'] / total < 0.2)):
         scores['Tie'] = 0
         bet_choice = max(scores, key=scores.get)
         confidence = min(round(scores[bet_choice] * 1.3), 95)
@@ -625,10 +629,8 @@ def calculate_bankroll(state, strategy, ai_mode):
         temp_state.result_tracker = current_bankroll
         if current_bankroll > temp_state.max_profit:
             temp_state.max_profit = current_bankroll
-            if strategy == "Dominant Pairs":
-                temp_state.unit = 1.0
+            if strategy == "Dominant Pairs" and temp_state.bet_amount > temp_state.unit:
                 temp_state.bet_amount = temp_state.unit
-
     logging.debug(f"calculate_bankroll: Final bankroll={current_bankroll:.2f}, Progress length={len(bankroll_progress)}")
     return bankroll_progress, bet_sizes
 
@@ -685,24 +687,35 @@ def main():
         if 'screen_width' not in st.session_state:
             st.session_state.screen_width = 1024
 
-        # JavaScript for screen width and auto-scroll
+        # JavaScript for screen width and auto-scroll with error handling
         st.markdown("""
             <script>
             function updateScreenWidth() {
-                const width = window.innerWidth;
-                document.getElementById('screen-width-input').value = width;
+                try {
+                    const width = window.innerWidth;
+                    const input = document.getElementById('screen-width-input');
+                    if (input) {
+                        input.value = width;
+                    }
+                } catch (e) {
+                    console.warn('Error updating screen width:', e);
+                }
             }
             function autoScrollPatterns() {
-                const containers = [
-                    'bead-bin-scroll', 'big-road-scroll', 'big-eye-scroll',
-                    'cockroach-scroll', 'win-loss-scroll', 'deal-history-scroll'
-                ];
-                containers.forEach(id => {
-                    const element = document.getElementById(id);
-                    if (element) {
-                        element.scrollLeft = element.scrollWidth;
-                    }
-                });
+                try {
+                    const containers = [
+                        'bead-bin-scroll', 'big-road-scroll', 'big-eye-scroll',
+                        'cockroach-scroll', 'win-loss-scroll', 'deal-history-scroll'
+                    ];
+                    containers.forEach(id => {
+                        const element = document.getElementById(id);
+                        if (element) {
+                            element.scrollLeft = element.scrollWidth;
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Error auto-scrolling patterns:', e);
+                }
             }
             window.onload = function() {
                 updateScreenWidth();
@@ -793,7 +806,7 @@ def main():
                 .stNumberInput input, .stSelectbox div {
                     font-size: 0.9rem;
                 }
-                .st-emotion-cache-1dj3wfg {
+                .responsive-columns {
                     flex-wrap: wrap;
                 }
             }
@@ -803,7 +816,7 @@ def main():
         # Game Settings
         with st.expander("Game Settings", expanded=False):
             logging.debug("Rendering Game Settings")
-            cols = st.columns(4)
+            cols = st.columns(4, gap="small")
             with cols[0]:
                 initial_bankroll = st.number_input("Initial Bankroll", min_value=1.0, value=st.session_state.state.result_tracker, step=10.0, format="%.2f")
             with cols[1]:
@@ -825,9 +838,9 @@ def main():
 
         # Session Management
         with st.expander("Session Management", expanded=False):
-            cols = st.columns(2)
+            cols = st.columns(2, gap="small")
             with cols[0]:
-                if st.button("Save Session"):
+                if st.button("Save Session", key="save_session"):
                     if st.session_state.state.save():
                         st.success("Session saved to baccarat_session.json")
                         logging.info("Session save successful")
@@ -835,11 +848,10 @@ def main():
                         st.error("Failed to save session.")
                         logging.error("Session save failed")
             with cols[1]:
-                if st.button("Load Session"):
+                if st.button("Load Session", key="load_session"):
                     if st.session_state.state.load():
                         st.success("Session loaded from baccarat_session.json")
                         logging.info("Session load successful")
-                        st.rerun()
                     else:
                         st.error("No session file found or error loading.")
                         logging.error("Session load failed")
@@ -847,42 +859,38 @@ def main():
         # Input Game Results
         with st.expander("Input Game Results", expanded=True):
             logging.debug("Rendering Input Game Results")
-            cols = st.columns(4)
+            cols = st.columns(4, gap="small")
             with cols[0]:
-                if st.button("Player"):
+                if st.button("Player", key="player_button"):
                     st.session_state.state.history.append("Player")
                     logging.debug("Added Player to history")
-                    st.rerun()
             with cols[1]:
-                if st.button("Banker"):
+                if st.button("Banker", key="banker_button"):
                     st.session_state.state.history.append("Banker")
                     logging.debug("Added Banker to history")
-                    st.rerun()
             with cols[2]:
-                if st.button("Tie"):
+                if st.button("Tie", key="tie_button"):
                     st.session_state.state.history.append("Tie")
                     logging.debug("Added Tie to history")
-                    st.rerun()
             with cols[3]:
-                undo_clicked = st.button("Undo", disabled=len(st.session_state.state.history) == 0)
-                if undo_clicked and len(st.session_state.state.history) == 0:
-                    st.warning("No results to undo!")
-                    logging.warning("Undo attempted with empty history")
-                elif undo_clicked:
-                    if st.session_state.state.history:
+                undo_clicked = st.button("Undo", key="undo_button", disabled=len(st.session_state.state.history) == 0)
+                if undo_clicked:
+                    if len(st.session_state.state.history) == 0:
+                        st.warning("No results to undo!")
+                        logging.warning("Undo attempted with empty history")
+                    else:
                         st.session_state.state.history.pop()
                         logging.debug("Removed last result from history")
-                    if st.session_state.state.state_history:
-                        last_state = st.session_state.state.state_history.pop()
-                        st.session_state.state.pair_types = last_state['pair_types']
-                        st.session_state.state.previous_result = last_state['previous_result']
-                        st.session_state.state.bet_amount = last_state['bet_amount']
-                        st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
-                        st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
-                        logging.debug("Restored previous state from undo")
-                    if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
-                        st.session_state.state.t3_results.pop()
-                    st.rerun()
+                        if st.session_state.state.state_history:
+                            last_state = st.session_state.state.state_history.pop()
+                            st.session_state.state.pair_types = last_state['pair_types']
+                            st.session_state.state.previous_result = last_state['previous_result']
+                            st.session_state.state.bet_amount = last_state['bet_amount']
+                            st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
+                            st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
+                            logging.debug("Restored previous state from undo")
+                        if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
+                            st.session_state.state.t3_results.pop()
 
         # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=False):
@@ -892,10 +900,11 @@ def main():
             st.session_state.selected_pattern = selected_pattern
             logging.debug(f"Selected pattern: {selected_pattern}")
             max_display_cols = 10 if st.session_state.screen_width < 768 else 14
+            max_display_items = max_display_cols * 6
 
             if selected_pattern == "Bead Bin":
                 st.markdown("### Bead Bin")
-                sequence = st.session_state.state.history[-84:]
+                sequence = st.session_state.state.history[-max_display_items:]
                 sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in sequence]
                 grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
                 for i, r in enumerate(sequence):
@@ -1009,7 +1018,7 @@ def main():
                 for pair in st.session_state.state.pair_types[-100:]:
                     pair_type = "Even" if pair[0] == pair[1] else "Odd"
                     history_text += f"{pair[0]}-{pair[1]} ({pair_type})\n"
-                st.text_area("Deal History", history_text, height=200, disabled=True)
+                st.text_area("Deal History", history_text, height=200, disabled=True, key="deal_history")
                 if not st.session_state.state.pair_types:
                     st.markdown("No pair history available.")
                     logging.debug("No Deal History data")
@@ -1021,12 +1030,13 @@ def main():
             bet, confidence, reason, emotional_tone, pattern_insights = advanced_bet_selection(st.session_state.state, st.session_state.ai_mode)
             current_bankroll = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)[0][-1] if st.session_state.state.history else st.session_state.state.result_tracker
             recommended_bet = money_management(st.session_state.state, st.session_state.state.money_management_strategy)
-            if current_bankroll < max(1.0, st.session_state.state.unit):
+            min_bet = max(1.0, st.session_state.state.unit)
+            if current_bankroll < min_bet:
                 st.markdown("**No Bet**: Insufficient bankroll.")
-                logging.warning(f"Insufficient bankroll: {current_bankroll:.2f} < {max(1.0, st.session_state.state.unit):.2f}")
+                logging.info(f"Insufficient bankroll: {current_bankroll:.2f} < {min_bet:.2f}")
                 bet = 'None'
                 confidence = 0
-                reason = "Bankroll too low to place a bet."
+                reason = f"Bankroll ({current_bankroll:.2f}) too low to place minimum bet ({min_bet:.2f})."
                 emotional_tone = "Cautious"
             if bet in ('Pass', 'None'):
                 st.markdown("**No Bet**: No confident prediction or insufficient bankroll.")
@@ -1043,6 +1053,7 @@ def main():
         # Bankroll Progress
         with st.expander("Bankroll Progress", expanded=True):
             logging.debug("Rendering Bankroll Progress")
+            st.markdown("Bankroll Progress")
             bankroll_progress, bet_sizes = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)
             if bankroll_progress:
                 st.markdown("### Bankroll Progress")
@@ -1050,8 +1061,8 @@ def main():
                 for i in range(total_hands):
                     hand_number = total_hands - i
                     val = bankroll_progress[total_hands - 1 - i]
-                    bet_size = bet_sizes[total_hands - 1 - i]
-                    bet_display = f"Bet ${bet_size:.2f}" if bet_size > 0 else "No Bet"
+                    bet_size = bet_sizes[-1 - i]
+                    bet_display = f"Bet Size: {bet_size:.2f}" if bet_size > 0 else "No Bet"
                     st.markdown(f"Hand {hand_number}: ${val:.2f} | {bet_display}")
                 st.markdown(f"**Current Bankroll**: ${bankroll_progress[-1]:.2f}")
 
@@ -1069,40 +1080,40 @@ def main():
                     )
                 )
                 fig.update_layout(
-                    title=dict(text="Bankroll Over Time", x=0.5, xanchor='center'),
+                    title=dict(text="Bankroll Progression", x=0.5, xanchor='center'),
                     xaxis_title="Hand",
                     yaxis_title="Bankroll ($)",
                     xaxis=dict(tickangle=45),
                     yaxis=dict(autorange=True),
-                    template="plotly_white",
+                    template="plotly",
                     height=400,
                     margin=dict(l=40, r=40, t=50, b=100)
                 )
                 st.plotly_chart(fig, use_container_width=True)
                 logging.debug("Displayed Bankroll Chart")
             else:
-                st.markdown(f"**Current Bankroll**: ${st.session_state.state.result_tracker:.2f}")
+                st.markdown(f"**Current Bankroll: ${st.session_state.state.result_tracker:.2f}")
                 st.markdown("No bankroll history to display.")
                 logging.debug("No bankroll history to display")
 
         # Reset
         with st.expander("Reset", expanded=False):
             logging.debug("Rendering Reset")
-            if st.button("Reset Game"):
+            if st.button("Reset Session", key="reset_session"):
                 final_bankroll = calculate_bankroll(st.session_state.state, st.session_state.state.money_management_strategy, st.session_state.ai_mode)[0][-1] if st.session_state.state.history else st.session_state.state.result_tracker
-                st.session_state.state = BaccaratState()
-                st.session_state.state.result_tracker = max(1.0, final_bankroll)
-                st.session_state.state.unit = min(max(1.0, final_bankroll), final_bankroll)
-                st.session_state.state.bet_amount = st.session_state.state.unit
-                st.session_state.state.money_management_strategy = 'Flat Betting'
+                new_state = BaccaratState()
+                new_state.result_tracker = max(1.0, final_bankroll))
+                new_state.unit = max(1.0, min(new_state.result_tracker, final_bankroll))
+                new_state.bet_amount = new_state.unit
+                st.session_state.state = new_state
                 st.session_state.ai_mode = 'Conservative'
                 st.session_state.selected_pattern = 'Bead Bin'
                 logging.info("Reset game session")
                 st.rerun()
 
     except Exception as e:
-        logging.error(f"Error: {str(e)}", exc_info=True)
-        st.error(f"Error: {str(e)}. Contact support")
+        logging.error(f"Error in main: {str(e)}", exc_info=True)
+        st.error(f"Unexpected error: {str(e)}. Please contact support.")
 
 if __name__ == "__main__":
     main()
