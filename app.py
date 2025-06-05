@@ -43,10 +43,10 @@ class BaccaratState:
                     "t3_results": self.t3_results,
                     "money_management_strategy": self.money_management_strategy
                 }, f, indent=2)
-            logging.info(f"Session saved to {filename}")
+            logging.info(f"Session saved: {filename}")
             return True
         except Exception as e:
-            logging.error(f"Error saving session: {e}")
+            logging.error(f"Save session failed: {e}")
             return False
 
     def load(self, filename="baccarat_session.json"):
@@ -69,10 +69,10 @@ class BaccaratState:
                     self.money_management_strategy = data.get("money_management_strategy", "Flat Betting")
                 logging.info("Session loaded")
                 return True
-            logging.warning(f"No session file found at {filename}")
+            logging.warning(f"Session file not found: {filename}")
             return False
         except Exception as e:
-            logging.error(f"Error loading session: {e}")
+            logging.error(f"Load session failed: {e}")
             return False
 
 # Normalize input
@@ -536,7 +536,7 @@ def money_management(state, strategy, bet_outcome=None):
     max_bet = state.result_tracker
 
     if state.result_tracker < min_bet:
-        logging.warning(f"Bankroll ({state.result_tracker:.2f}) is less than minimum bet ({min_bet:.2f}).")
+        logging.warning(f"Bankroll too low: {state.result_tracker:.2f} < {min_bet:.2f}")
         return 0.0
 
     if strategy == "T3":
@@ -573,6 +573,7 @@ def money_management(state, strategy, bet_outcome=None):
 
 # Calculate bankroll and bet sizes
 def calculate_bankroll(state, strategy, ai_mode):
+    # Initialize with initial bankroll if no history
     if not state.history:
         logging.debug("calculate_bankroll: No history, returning initial bankroll")
         return [state.result_tracker], [0.0]
@@ -584,6 +585,7 @@ def calculate_bankroll(state, strategy, ai_mode):
     temp_state = BaccaratState()
     temp_state.__dict__.update(state.__dict__)
 
+    # Simulate each hand to calculate bankroll progression
     for i in range(len(temp_state.history)):
         current_rounds = temp_state.history[:i + 1]
         temp_state.history = current_rounds[:-1]
@@ -630,6 +632,10 @@ def calculate_bankroll(state, strategy, ai_mode):
             temp_state.max_profit = current_bankroll
             if strategy == "Dominant Pairs" and temp_state.bet_amount > temp_state.unit:
                 temp_state.bet_amount = temp_state.unit
+
+    # Update state with final values
+    state.max_profit = temp_state.max_profit
+    state.bet_amount = temp_state.bet_amount
     logging.info(f"calculate_bankroll: Final bankroll=${current_bankroll:.2f}, Progress={len(bankroll_progress)}")
     return bankroll_progress, bet_sizes
 
@@ -855,7 +861,7 @@ def main():
             st.session_state.state.money_management_strategy = strategy
             st.session_state.ai_mode = ai_mode
             st.markdown(f"**Strategy: {strategy}**")
-            logging.info(f"Settings: Bankroll=${initial_bankroll:.2f}, Base=${base_bet:.2f}, Strategy={strategy}, AI={ai_mode}")
+            logging.info(f"Settings updated: Bankroll=${initial_bankroll:.2f}, Base=${base_bet:.2f}, Strategy={strategy}, AI={ai_mode}")
 
         # Session Management
         with st.expander("Session Management"):
@@ -865,18 +871,18 @@ def main():
                 if st.button("Save", key="save_session"):
                     if st.session_state.state.save():
                         st.success("Saved to baccarat_session.json")
-                        logging.info("Session save successful")
+                        logging.info("Session saved")
                     else:
-                        st.error("Failed to save session.")
-                        logging.error("Failed to save session")
+                        st.error("Failed to save session")
+                        logging.error("Session save failed")
             with cols[1]:
                 if st.button("Load", key="load_session"):
                     if st.session_state.state.load():
                         st.success("Loaded from baccarat_session.json")
-                        logging.info("Session load successful")
+                        logging.info("Session loaded")
                     else:
-                        st.error("Failed to load session.")
-                        logging.error("Failed to load session")
+                        st.error("Failed to load session")
+                        logging.error("Session load failed")
 
         # Input Game Results
         with st.expander("Input Game Results", expanded=True):
@@ -895,32 +901,27 @@ def main():
                     st.session_state.state.history.append("Tie")
                     logging.info("Added Tie to history")
             with cols[3]:
-                undo_clicked = st.button("Undo", key="undo_button", disabled=len(st.session_state.state.history) == 0)
-                if undo_clicked:
-                    if len(st.session_state.state.history) == 0:
-                        st.warning("No history to undo!")
-                        logging.warning("Undo attempted on empty history")
+                if st.button("Undo", key="undo_button", disabled=len(st.session_state.state.history) == 0):
+                    st.session_state.state.history.pop()
+                    logging.info("Removed last result from history")
+                    if st.session_state.state.state_history:
+                        last_state = st.session_state.state.state_history.pop()
+                        st.session_state.state.pair_types = last_state['pair_types']
+                        st.session_state.state.previous_result = last_state.get('previous_result', None)
+                        st.session_state.state.bet_amount = last_state['bet_amount']
+                        st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
+                        st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
+                        logging.info("Restored state from undo")
                     else:
-                        st.session_state.state.history.pop()
-                        logging.info("Removed last result from history")
-                        if st.session_state.state.state_history:
-                            last_state = st.session_state.state.state_history.pop()
-                            st.session_state.state.pair_types = last_state['pair_types']
-                            st.session_state.state.previous_result = last_state.get('previous_result', None)
-                            st.session_state.state.bet_amount = last_state['bet_amount']
-                            st.session_state.state.current_dominance = last_state.get('current_dominance', 'N/A')
-                            st.session_state.state.next_prediction = last_state.get('next_prediction', 'N/A')
-                            logging.info("Restored state from undo")
-                        else:
-                            st.session_state.state.pair_types = []
-                            st.session_state.state.previous_result = None
-                            st.session_state.state.bet_amount = st.session_state.state.unit
-                            st.session_state.state.current_dominance = 'N/A'
-                            st.session_state.state.next_prediction = 'N/A'
-                            logging.info("No state history, reset state variables")
-                        if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
-                            st.session_state.state.t3_results.pop()
-                            logging.info("Removed last T3 result")
+                        st.session_state.state.pair_types = []
+                        st.session_state.state.previous_result = None
+                        st.session_state.state.bet_amount = st.session_state.state.unit
+                        st.session_state.state.current_dominance = 'N/A'
+                        st.session_state.state.next_prediction = 'N/A'
+                        logging.info("No state history, reset state variables")
+                    if st.session_state.state.money_management_strategy == "T3" and st.session_state.state.t3_results:
+                        st.session_state.state.t3_results.pop()
+                        logging.info("Removed last T3 result")
 
         # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=False):
@@ -947,7 +948,7 @@ def main():
                     st.markdown(' '.join(cell or '<div class="display-circle"></div>' for cell in row), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
                 if not st.session_state.state.history:
-                    st.markdown("No results.")
+                    st.markdown("No results")
                     logging.debug("No Bead Bin data")
 
             elif selected_pattern == "Big Road":
@@ -971,7 +972,7 @@ def main():
                         st.markdown(' '.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown("No Big Road data.")
+                    st.markdown("No Big Road data")
                     logging.debug("No Big Road data")
 
             elif selected_pattern == "Big Eye":
@@ -995,7 +996,7 @@ def main():
                         st.markdown(' '.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown("No Big Eye data.")
+                    st.markdown("No Big Eye data")
                     logging.debug("No Big Eye data")
 
             elif selected_pattern == "Cockroach Pig":
@@ -1019,7 +1020,7 @@ def main():
                         st.markdown(' '.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
-                    st.markdown("No Cockroach data.")
+                    st.markdown("No Cockroach data")
                     logging.debug("No Cockroach data")
 
             elif selected_pattern == "Win-Loss":
@@ -1037,7 +1038,7 @@ def main():
                 st.markdown(' '.join(row_display), unsafe_allow_html=True)
                 st.markdown('</div>', unsafe_allow_html=True)
                 if not st.session_state.state.history:
-                    st.markdown("No results yet.")
+                    st.markdown("No results yet")
                     logging.debug("No Win/Loss data")
 
             elif selected_pattern == "Deal History":
@@ -1048,7 +1049,7 @@ def main():
                     history_text += f"{pair[0]}-{pair[1]} ({pair_type})\n"
                 st.text_area("Deal History", history_text, height=200, disabled=True, key="deal_history")
                 if not st.session_state.state.pair_types:
-                    st.markdown("No pair history.")
+                    st.markdown("No pair history")
                     logging.debug("No Deal History data")
 
         # Prediction
@@ -1061,14 +1062,14 @@ def main():
             recommended_bet = money_management(st.session_state.state, st.session_state.state.money_management_strategy)
             min_bet = max(1.0, st.session_state.state.unit)
             if current_bankroll < min_bet:
-                st.markdown("<strong>No Bet</strong>: Insufficient bankroll.", unsafe_allow_html=True)
+                st.markdown("<strong>No Bet</strong>: Insufficient bankroll", unsafe_allow_html=True)
                 logging.warning(f"Bankroll too low: ${current_bankroll:.2f} < ${min_bet:.2f}")
                 bet = 'None'
                 confidence = 0
-                reason = f"Bankroll (${current_bankroll:.2f}) too low for minimum bet (${min_bet:.2f})."
+                reason = f"Bankroll (${current_bankroll:.2f}) too low for minimum bet (${min_bet:.2f})"
                 emotional_tone = 'Cautious'
             if bet in ('Pass', 'None'):
-                st.markdown("<strong>No Bet</strong>: No confident prediction or insufficient bankroll.", unsafe_allow_html=True)
+                st.markdown("<strong>No Bet</strong>: No confident prediction or insufficient bankroll", unsafe_allow_html=True)
             else:
                 st.markdown(f"<strong>Bet</strong>: {bet} | <strong>Confidence</strong>: {confidence}% | <strong>Bet Size</strong>: ${recommended_bet:.2f} | <strong>Mood</strong>: {emotional_tone}", unsafe_allow_html=True)
             st.markdown(f"<strong>Reason</strong>: {reason}", unsafe_allow_html=True)
@@ -1109,12 +1110,12 @@ def main():
                     template="plotly_white",
                     height=400,
                     margin=dict(l=40, r=40, t=50, b=100)
-                ))
+                )
                 st.plotly_chart(fig, use_container_width=True)
                 logging.debug("Bankroll chart displayed")
             else:
                 st.markdown(f"<strong>Current Bankroll</strong>: ${st.session_state.state.result_tracker:.2f}", unsafe_allow_html=True)
-                st.markdown("No bankroll history.")
+                st.markdown("No bankroll history")
                 logging.debug("No bankroll history")
 
         # Reset
@@ -1135,10 +1136,10 @@ def main():
 
     except IndexError as e:
         logging.error(f"Index error: {e}", exc_info=True)
-        st.error(f"Error: List index out of range. Please try resetting the game or contact support.")
+        st.error(f"Error: List index out of range. Please try resetting the game or contact support")
     except Exception as e:
-        logging.error(f"Unexpected error: {str(e)}", exc_info=True)
-        st.error(f"Error: {str(e)}. Contact support.")
+        logging.error(f"Unexpected error: {e}", exc_info=True)
+        st.error(f"Error: {str(e)}. Contact support")
 
 if __name__ == "__main__":
     main()
