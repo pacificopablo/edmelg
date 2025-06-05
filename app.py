@@ -1089,7 +1089,7 @@ def main():
                 for i, (bankroll, bet_size) in enumerate(zip(bankroll_progress, bet_sizes)):
                     hand_num = i + 1
                     bet_display = f"Bet ${bet_size:.2f}" if bet_size > 0 else "No Bet"
-                    st.markdown(f"Hand {hand_num}: ${bankroll:.2f} | {bet_display}"")
+                    st.markdown(f"Hand {hand_num}: ${bankroll:.2f} | {bet_display}")
                 st.markdown("### Bankroll Chart")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
@@ -1109,7 +1109,7 @@ def main():
                     template="plotly_white",
                     height=400,
                     margin=dict(l=40, r=40, t=50, b=100)
-                )
+                ))
                 st.plotly_chart(fig, use_container_width=True)
                 logging.debug("Bankroll chart displayed")
             else:
@@ -1127,10 +1127,10 @@ def main():
                 new_state.unit = max(1.0, min(new_state.result_tracker, final_bankroll))
                 new_state.bet_amount = new_state.unit
                 new_state.t3_results = []
-                st.session_state.result.state = new_state
+                st.session_state.state = new_state
                 st.session_state.ai_mode = 'Conservative'
                 st.session_state.selected_pattern = 'Bead Bin'
-                logging.info("Game session reset")
+                logging.info("Game reset")
                 st.rerun()
 
     except IndexError as e:
