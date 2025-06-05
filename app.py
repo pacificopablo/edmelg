@@ -4,6 +4,7 @@ import plotly.graph_objects as go
 import math
 import json
 import os
+from streamlit_javascript import st_javascript
 
 # Set up logging with INFO level
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -692,20 +693,18 @@ def main():
         if 'screen_width' not in st.session_state:
             st.session_state.screen_width = 1024
 
-        # JavaScript for screen width and auto-scroll
+        # Get screen width via JavaScript
+        screen_width = st_javascript("window.innerWidth")
+        if isinstance(screen_width, (int, float)) and screen_width > 0:
+            st.session_state.screen_width = int(screen_width)
+            logging.debug(f"Screen width updated: {st.session_state.screen_width}")
+        else:
+            logging.warning(f"Invalid screen width from JS: {screen_width}, using default 1024")
+            st.session_state.screen_width = 1024
+
+        # JavaScript for auto-scroll only
         st.markdown("""
             <script>
-            function updateScreenWidth() {
-                try {
-                    const width = window.innerWidth;
-                    const input = document.getElementById('screen-width');
-                    if (input) {
-                        input.value = width;
-                    }
-                } catch (e) {
-                    console.warn('Error updating screen width:', e);
-                }
-            }
             function autoScrollPatterns() {
                 try {
                     const containers = [
@@ -722,22 +721,9 @@ def main():
                     console.warn('Error scrolling:', e);
                 }
             }
-            window.onload = function() {
-                updateScreenWidth();
-                autoScrollPatterns();
-            };
-            window.onresize = updateScreenWidth;
+            window.onload = autoScrollPatterns;
             </script>
-            <input type="hidden" id="screen-width">
         """, unsafe_allow_html=True)
-
-        screen_width_input = st.text_input("Screen Width", key="screen_width", value=str(st.session_state.screen_width), disabled=True)
-        try:
-            st.session_state.screen_width = int(screen_width_input) if screen_width_input.strip().isdigit() else 1024
-            logging.debug(f"Screen width set to {st.session_state.screen_width}")
-        except ValueError:
-            logging.warning(f"Invalid screen width input: {screen_width_input}, defaulting to 1024")
-            st.session_state.screen_width = 1024
 
         # CSS for styling
         st.markdown("""
