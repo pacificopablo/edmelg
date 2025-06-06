@@ -17,6 +17,7 @@ class BaccaratPredictor:
             st.session_state.consecutive_wins = 0
             st.session_state.consecutive_losses = 0
             st.session_state.streak_type = None
+            st.session_state.message = ""  # For dynamic feedback
 
     def reset_betting(self):
         st.session_state.result_tracker = 0
@@ -49,7 +50,7 @@ class BaccaratPredictor:
             st.session_state.current_dominance = "N/A"
             st.session_state.streak_type = None
 
-        st.success("Betting has been reset to initial state.")
+        st.session_state.message = "Betting has been reset to initial state."
 
     def reset_all(self):
         st.session_state.pair_types = []
@@ -63,7 +64,7 @@ class BaccaratPredictor:
         st.session_state.consecutive_wins = 0
         st.session_state.consecutive_losses = 0
         st.session_state.streak_type = None
-        st.success("All session data has been reset, profit lock reset.")
+        st.session_state.message = "All session data has been reset, profit lock reset."
 
     def record_result(self, result):
         # Save current state for undo
@@ -127,7 +128,7 @@ class BaccaratPredictor:
                     if st.session_state.result_tracker > st.session_state.profit_lock:
                         st.session_state.profit_lock = st.session_state.result_tracker
                         self.reset_betting()
-                        st.success(f"New profit lock achieved: {st.session_state.profit_lock} units! Betting reset to 1 unit.")
+                        st.session_state.message = f"New profit lock achieved: {st.session_state.profit_lock} units! Betting reset to 1 unit."
                         return
                     if st.session_state.consecutive_wins >= 2:
                         st.session_state.bet_amount = max(1, st.session_state.bet_amount - 1)
@@ -144,7 +145,7 @@ class BaccaratPredictor:
 
     def undo(self):
         if not st.session_state.state_history:
-            st.warning("No actions to undo.")
+            st.session_state.message = "No actions to undo."
             return
 
         last_state = st.session_state.state_history.pop()
@@ -158,7 +159,7 @@ class BaccaratPredictor:
         st.session_state.consecutive_wins = last_state['consecutive_wins']
         st.session_state.consecutive_losses = last_state['consecutive_losses']
         st.session_state.streak_type = last_state['streak_type']
-        st.success("Last action undone.")
+        st.session_state.message = "Last action undone."
 
     def render(self):
         # Set page configuration
@@ -233,11 +234,31 @@ class BaccaratPredictor:
                 background-color: #23272A;
                 color: white;
             }
+            .message-box {
+                font-size: 14px;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+            }
+            .success {
+                background-color: #28a745;
+                color: white;
+            }
+            .warning {
+                background-color: #ffc107;
+                color: black;
+            }
             </style>
         """, unsafe_allow_html=True)
 
         # Title
         st.markdown('<div class="title">Enhanced Dominant Pairs Baccarat Predictor</div>', unsafe_allow_html=True)
+
+        # Message placeholder for dynamic feedback
+        message_placeholder = st.empty()
+        if st.session_state.message:
+            message_class = "success" if "profit lock" in st.session_state.message.lower() or "reset" in st.session_state.message.lower() or "undone" in st.session_state.message.lower() else "warning"
+            message_placeholder.markdown(f'<div class="message-box {message_class}">{st.session_state.message}</div>', unsafe_allow_html=True)
 
         # Info section
         with st.container():
@@ -252,8 +273,10 @@ class BaccaratPredictor:
             st.markdown(f'<div class="info-text"><b>Streak:</b> {st.session_state.streak_type if st.session_state.streak_type else "None"}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # Form for result buttons to reduce re-runs
-        with st.form(key="result_form"):
+        # Single form for all buttons
+        with st.form(key="main_form"):
+            # Result buttons
+            st.markdown("**Record Result:**")
             col1, col2, col3 = st.columns([1, 1, 1])
             with col1:
                 player_clicked = st.form_submit_button("Player")
@@ -262,14 +285,32 @@ class BaccaratPredictor:
             with col3:
                 undo_clicked = st.form_submit_button("Undo")
 
-            if player_clicked:
-                self.record_result('P')
-                st.rerun()
-            elif banker_clicked:
-                self.record_result('B')
-                st.rerun()
-            elif undo_clicked:
-                self.undo()
+            # Session control buttons
+            st.markdown("**Session Controls:**")
+            col4, col5, col6 = st.columns([1, 1, 1])
+            with col4:
+                reset_bet_clicked = st.form_submit_button("Reset Bet")
+            with col5:
+                reset_session_clicked = st.form_submit_button("Reset Session")
+            with col6:
+                new_session_clicked = st.form_submit_button("New Session")
+
+            # Handle form submission
+            if any([player_clicked, banker_clicked, undo_clicked, reset_bet_clicked, reset_session_clicked, new_session_clicked]):
+                st.session_state.message = ""  # Clear previous message
+                if player_clicked:
+                    self.record_result('P')
+                elif banker_clicked:
+                    self.record_result('B')
+                elif undo_clicked:
+                    self.undo()
+                elif reset_bet_clicked:
+                    self.reset_betting()
+                elif reset_session_clicked:
+                    self.reset_all()
+                elif new_session_clicked:
+                    self.reset_all()
+                    st.session_state.message = "New session started."
                 st.rerun()
 
         # Deal History as a table
@@ -286,22 +327,6 @@ class BaccaratPredictor:
             else:
                 st.text("No history yet.")
             st.markdown('</div>', unsafe_allow_html=True)
-
-        # Session control buttons
-        col4, col5, col6 = st.columns([1, 1, 1])
-        with col4:
-            if st.button("Reset Bet"):
-                self.reset_betting()
-                st.rerun()
-        with col5:
-            if st.button("Reset Session"):
-                self.reset_all()
-                st.rerun()
-        with col6:
-            if st.button("New Session"):
-                self.reset_all()
-                st.success("New session started.")
-                st.rerun()
 
 if __name__ == "__main__":
     app = BaccaratPredictor()
