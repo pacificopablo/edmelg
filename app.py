@@ -165,7 +165,7 @@ class BaccaratPredictor:
         # Set page configuration
         st.set_page_config(page_title="Baccarat Predictor", layout="centered")
 
-        # Custom CSS for professional look with mobile optimization
+        # Custom CSS for professional look with improved button contrast
         st.markdown("""
             <style>
             .main {
@@ -174,7 +174,7 @@ class BaccaratPredictor:
                 font-family: 'Helvetica Neue', Arial, sans-serif;
             }
             .stButton>button {
-                background: linear-gradient(45deg, #5865F2, #7289DA);
+                background: linear-gradient(45deg, #4C51BF, #8E2DE2);
                 color: white;
                 font-weight: 600;
                 font-size: 16px;
@@ -188,7 +188,7 @@ class BaccaratPredictor:
                 transition: all 0.3s ease;
             }
             .stButton>button:hover {
-                background: linear-gradient(45deg, #99AAB5, #B0B7C3);
+                background: linear-gradient(45deg, #A3BFFA, #C77DFF);
                 transform: translateY(-2px);
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
             }
