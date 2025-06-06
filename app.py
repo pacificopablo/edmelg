@@ -165,87 +165,127 @@ class BaccaratPredictor:
         # Set page configuration
         st.set_page_config(page_title="Baccarat Predictor", layout="centered")
 
-        # Custom CSS for enhanced GUI
+        # Custom CSS for professional look
         st.markdown("""
             <style>
             .main {
-                background-color: #2C2F33;
+                background-color: #1E2124;
                 color: white;
-                font-family: Helvetica, Arial, sans-serif;
+                font-family: 'Helvetica Neue', Arial, sans-serif;
             }
             .stButton>button {
-                background-color: #7289DA;
+                background: linear-gradient(45deg, #5865F2, #7289DA);
                 color: white;
-                font-weight: bold;
-                padding: 12px;
+                font-weight: 600;
+                padding: 12px 20px;
                 border: none;
-                border-radius: 8px;
-                width: 120px;
+                border-radius: 10px;
+                width: 140px;
                 margin: 10px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
                 transition: all 0.3s ease;
             }
             .stButton>button:hover {
-                background-color: #99AAB5;
-                transform: scale(1.05);
+                background: linear-gradient(45deg, #99AAB5, #B0B7C3);
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
             }
             .title {
-                font-size: 28px;
-                font-weight: bold;
+                font-size: 32px;
+                font-weight: 700;
                 text-align: center;
                 margin-bottom: 30px;
                 color: #FFFFFF;
+                letter-spacing: 1px;
             }
             .info-card {
                 background-color: #23272A;
-                padding: 20px;
-                border-radius: 10px;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-                margin-bottom: 20px;
+                padding: 25px;
+                border-radius: 12px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                margin-bottom: 25px;
+                border: 1px solid #3A3F44;
             }
             .info-text {
                 font-size: 16px;
-                margin: 10px 0;
+                margin: 12px 0;
+                color: #DCDDDE;
             }
             .prediction-text {
-                font-size: 20px;
-                font-weight: bold;
-                padding: 10px;
-                border-radius: 5px;
+                font-size: 22px;
+                font-weight: 600;
+                padding: 12px;
+                border-radius: 8px;
                 text-align: center;
+                margin: 15px 0;
             }
             .prediction-player {
-                background-color: #28a745;
+                background-color: #2E7D32;
+                color: white;
             }
             .prediction-banker {
-                background-color: #dc3545;
+                background-color: #D32F2F;
+                color: white;
             }
             .prediction-hold {
-                background-color: #6c757d;
+                background-color: #546E7A;
+                color: white;
             }
             .history-card {
                 background-color: #23272A;
-                padding: 15px;
-                border-radius: 10px;
-                max-height: 300px;
+                padding: 20px;
+                border-radius: 12px;
+                max-height: 350px;
                 overflow-y: auto;
-                margin-top: 20px;
+                margin-top: 25px;
+                border: 1px solid #3A3F44;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
             }
-            .stDataFrame {
-                background-color: #23272A;
-                color: white;
+            .history-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+                color: #DCDDDE;
+            }
+            .history-table th {
+                background-color: #2C2F33;
+                padding: 12px;
+                text-align: left;
+                font-weight: 600;
+                border-bottom: 2px solid #3A3F44;
+                position: sticky;
+                top: 0;
+                z-index: 1;
+            }
+            .history-table td {
+                padding: 12px;
+                border-bottom: 1px solid #3A3F44;
+            }
+            .history-table tr:nth-child(even) {
+                background-color: #2A2D31;
+            }
+            .history-table tr:hover {
+                background-color: #35393F;
+            }
+            .even-row {
+                background-color: rgba(46, 125, 50, 0.2);
+            }
+            .odd-row {
+                background-color: rgba(211, 47, 47, 0.2);
             }
             .message-box {
                 font-size: 14px;
-                padding: 10px;
-                border-radius: 5px;
+                padding: 12px;
+                border-radius: 8px;
                 margin-bottom: 20px;
+                text-align: center;
             }
             .success {
-                background-color: #28a745;
+                background-color: #2E7D32;
                 color: white;
             }
             .warning {
-                background-color: #ffc107;
+                background-color: #FFB300;
                 color: black;
             }
             </style>
@@ -313,19 +353,23 @@ class BaccaratPredictor:
                     st.session_state.message = "New session started."
                 st.rerun()
 
-        # Deal History as a table
+        # Deal History as a styled table
         st.markdown("**Deal History:**")
         with st.container():
             st.markdown('<div class="history-card">', unsafe_allow_html=True)
             if st.session_state.pair_types:
                 history_data = [
-                    {"Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
-                    for pair in st.session_state.pair_types[-100:]
+                    {"Index": i + 1, "Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
+                    for i, pair in enumerate(st.session_state.pair_types[-100:])
                 ]
-                df = pd.DataFrame(history_data)
-                st.dataframe(df, use_container_width=True, height=200)
+                history_html = '<table class="history-table"><tr><th>Index</th><th>Pair</th><th>Type</th></tr>'
+                for row in history_data:
+                    row_class = "even-row" if row["Type"] == "Even" else "odd-row"
+                    history_html += f'<tr class="{row_class}"><td>{row["Index"]}</td><td>{row["Pair"]}</td><td>{row["Type"]}</td></tr>'
+                history_html += '</table>'
+                st.markdown(history_html, unsafe_allow_html=True)
             else:
-                st.text("No history yet.")
+                st.markdown('<div class="info-text">No history yet.</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
