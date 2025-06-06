@@ -1,8 +1,7 @@
 import streamlit as st
 import logging
-import plotly.graph_objects as go
 
-# Set up basic logging
+# Set up logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def build_big_road(s):
@@ -91,32 +90,42 @@ def build_cockroach_pig(big_road_grid, num_cols):
 
 def main():
     try:
-        st.set_page_config(page_title="Mang Baccarat Tracker", page_icon="🎲", layout="wide")
-        st.title("Mang Baccarat Tracker")
+        st.set_page_config(page_title="Mang Baccarat Tracker with Enhanced Dominant Pairs", page_icon="🎲", layout="wide")
+        st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
 
+        # Initialize session state
         if 'history' not in st.session_state:
             st.session_state.history = []
+        if 'pair_types' not in st.session_state:
+            st.session_state.pair_types = []
+        if 'previous_result' not in st.session_state:
+            st.session_state.previous_result = None
+        if 'result_tracker' not in st.session_state:
+            st.session_state.result_tracker = 0
+        if 'profit_lock' not in st.session_state:
+            st.session_state.profit_lock = 0
+        if 'bet_amount' not in st.session_state:
+            st.session_state.bet_amount = 1
+        if 'unit' not in st.session_state:
+            st.session_state.unit = 1
+        if 'next_prediction' not in st.session_state:
+            st.session_state.next_prediction = "N/A"
+        if 'current_dominance' not in st.session_state:
+            st.session_state.current_dominance = "N/A"
+        if 'consecutive_wins' not in st.session_state:
+            st.session_state.consecutive_wins = 0
+        if 'consecutive_losses' not in st.session_state:
+            st.session_state.consecutive_losses = 0
+        if 'streak_type' not in st.session_state:
+            st.session_state.streak_type = None
+        if 'state_history' not in st.session_state:
+            st.session_state.state_history = []
+        if 'selected_patterns' not in st.session_state:
+            st.session_state.selected_patterns = ["Bead Bin"]
         if 'screen_width' not in st.session_state:
             st.session_state.screen_width = 1024
 
-        st.markdown("""
-            <script>
-            function updateScreenWidth() {
-                const width = window.innerWidth;
-                document.getElementById('screen-width-input').value = width;
-            }
-            window.onload = updateScreenWidth;
-            window.onresize = updateScreenWidth;
-            </script>
-            <input type="hidden" id="screen-width-input">
-        """, unsafe_allow_html=True)
-
-        screen_width_input = st.text_input("Screen Width", key="screen_width_input", value=str(st.session_state.screen_width), disabled=True)
-        try:
-            st.session_state.screen_width = int(screen_width_input) if screen_width_input.isdigit() else 1024
-        except ValueError:
-            st.session_state.screen_width = 1024
-
+        # Custom CSS for styling
         st.markdown("""
             <style>
             .pattern-scroll {
@@ -138,6 +147,13 @@ def main():
                 width: 100%;
                 padding: 8px;
                 margin: 5px 0;
+                background-color: #7289DA;
+                color: white;
+                border: none;
+                border-radius: 5px;
+            }
+            .stButton > button:hover {
+                background-color: #99AAB5;
             }
             .stSelectbox {
                 width: 100% !important;
@@ -167,10 +183,12 @@ def main():
                 display: inline-block;
                 margin: 2px;
             }
-            @media (min-width: 769px) {
-                .stButton > button, .stSelectbox {
-                    max-width: 200px;
-                }
+            .info-box {
+                background-color: #2C2F33;
+                color: white;
+                padding: 10px;
+                border-radius: 5px;
+                margin-bottom: 10px;
             }
             @media (max-width: 768px) {
                 h1 {
@@ -193,9 +211,6 @@ def main():
                 .stSelectbox div {
                     font-size: 0.9rem;
                 }
-                .st-emotion-cache-1dj3wfg {
-                    flex-wrap: wrap;
-                }
             }
             </style>
             <script>
@@ -204,7 +219,8 @@ def main():
                     'bead-bin-scroll',
                     'big-road-scroll',
                     'big-eye-scroll',
-                    'cockroach-scroll'
+                    'cockroach-scroll',
+                    'deal-history-scroll'
                 ];
                 containers.forEach(id => {
                     const element = document.getElementById(id);
@@ -214,37 +230,81 @@ def main():
                 });
             }
             window.onload = autoScrollPatterns;
+            window.onresize = autoScrollPatterns;
             </script>
         """, unsafe_allow_html=True)
 
+        # Update screen width
+        screen_width_input = st.text_input("Screen Width", key="screen_width_input", value=str(st.session_state.screen_width), disabled=True)
+        try:
+            st.session_state.screen_width = int(screen_width_input) if screen_width_input.isdigit() else 1024
+        except ValueError:
+            st.session_state.screen_width = 1024
+
+        # Display prediction and betting info
+        with st.expander("Prediction and Betting Info", expanded=True):
+            st.markdown(f"""
+                <div class='info-box'>
+                    <p><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</p>
+                    <p><b>Bankroll:</b> {st.session_state.result_tracker}</p>
+                    <p><b>Profit Lock:</b> {st.session_state.profit_lock}</p>
+                    <p><b>Bet:</b> {st.session_state.next_prediction}</p>
+                    <p><b>Current Dominance:</b> {st.session_state.current_dominance}</p>
+                    <p><b>Streak:</b> {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Input game results
         with st.expander("Input Game Results", expanded=True):
-            cols = st.columns(4)
+            cols = st.columns(5)
             with cols[0]:
                 if st.button("Player"):
-                    st.session_state.history.append("Player")
+                    record_result("P")
                     st.rerun()
             with cols[1]:
                 if st.button("Banker"):
-                    st.session_state.history.append("Banker")
+                    record_result("B")
                     st.rerun()
             with cols[2]:
                 if st.button("Tie"):
-                    st.session_state.history.append("Tie")
+                    record_result("T")
                     st.rerun()
             with cols[3]:
-                undo_clicked = st.button("Undo", disabled=len(st.session_state.history) == 0)
-                if undo_clicked and len(st.session_state.history) == 0:
-                    st.warning("No results to undo!")
-                elif undo_clicked:
-                    st.session_state.history.pop()
+                if st.button("Undo", disabled=len(st.session_state.state_history) == 0):
+                    undo()
+                    st.rerun()
+            with cols[4]:
+                if st.button("Reset Betting"):
+                    reset_betting()
                     st.rerun()
 
+        # Session control
+        with st.expander("Session Control", expanded=False):
+            if st.button("New Session"):
+                reset_all()
+                st.rerun()
+
+        # Deal history
+        with st.expander("Deal History", expanded=True):
+            st.markdown("### Deal History")
+            st.markdown('<div id="deal-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+            history_text = ""
+            for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
+                pair_type = "Even" if pair[0] == pair[1] else "Odd"
+                history_text += f"{pair} ({pair_type})\n"
+            if history_text:
+                st.text(history_text)
+            else:
+                st.markdown("No deal history yet.")
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        # Shoe patterns
         with st.expander("Shoe Patterns", expanded=True):
             pattern_options = ["Bead Bin", "Big Road", "Big Eye", "Cockroach"]
             selected_patterns = st.multiselect(
                 "Select Patterns to Display",
                 pattern_options,
-                default=["Bead Bin"] if 'selected_patterns' not in st.session_state else st.session_state.selected_patterns,
+                default=st.session_state.selected_patterns,
                 key="pattern_select"
             )
             st.session_state.selected_patterns = selected_patterns
@@ -339,18 +399,156 @@ def main():
                 else:
                     st.markdown("No recent Cockroach data.")
 
-        with st.expander("Reset", expanded=False):
-            if st.button("New Game"):
-                st.session_state.history = []
-                st.session_state.selected_patterns = ["Bead Bin"]
-                st.rerun()
-
-    except (KeyError, ValueError, IndexError) as e:
-        logging.error(f"Error in main: {str(e)}")
-        st.error(f"Error occurred: {str(e)}. Please try refreshing the page or resetting the game.")
     except Exception as e:
         logging.error(f"Unexpected error in main: {str(e)}")
         st.error(f"Unexpected error: {str(e)}. Contact support if this persists.")
+
+def record_result(result):
+    # Save current state for undo
+    state = {
+        'history': st.session_state.history.copy(),
+        'pair_types': st.session_state.pair_types.copy(),
+        'previous_result': st.session_state.previous_result,
+        'result_tracker': st.session_state.result_tracker,
+        'profit_lock': st.session_state.profit_lock,
+        'bet_amount': st.session_state.bet_amount,
+        'current_dominance': st.session_state.current_dominance,
+        'next_prediction': st.session_state.next_prediction,
+        'consecutive_wins': st.session_state.consecutive_wins,
+        'consecutive_losses': st.session_state.consecutive_losses,
+        'streak_type': st.session_state.streak_type
+    }
+    st.session_state.state_history.append(state)
+
+    # Append result to history
+    st.session_state.history.append('Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie')
+
+    if result == 'T':
+        st.session_state.next_prediction = "N/A" if st.session_state.previous_result is None else st.session_state.next_prediction
+        st.session_state.previous_result = st.session_state.previous_result
+    else:
+        if st.session_state.previous_result is not None:
+            pair = (st.session_state.previous_result, result)
+            st.session_state.pair_types.append(pair)
+
+            # Check for streak
+            last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
+            if len(last_three) >= 3 and all(r == result for r in last_three):
+                st.session_state.streak_type = result
+            else:
+                st.session_state.streak_type = None
+
+            # Prediction logic
+            if len(st.session_state.pair_types) >= 5:
+                recent_pairs = st.session_state.pair_types[-10:]
+                odd_count = sum(1 for a, b in recent_pairs if a != b)
+                even_count = sum(1 for a, b in recent_pairs if a == b)
+
+                if st.session_state.streak_type:
+                    st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
+                    st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
+                elif abs(odd_count - even_count) < 2:
+                    st.session_state.current_dominance = "N/A"
+                    st.session_state.next_prediction = "Hold"
+                elif odd_count > even_count:
+                    st.session_state.current_dominance = "Odd"
+                    st.session_state.next_prediction = "Player" if result == 'B' else "Banker"
+                else:
+                    st.session_state.current_dominance = "Even"
+                    st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
+
+                # Update betting
+                if st.session_state.bet_amount == 0:
+                    st.session_state.bet_amount = st.session_state.unit
+
+                if len(st.session_state.pair_types) >= 6 and st.session_state.state_history[-1]['next_prediction'] != "Hold":
+                    previous_prediction = st.session_state.state_history[-1]['next_prediction']
+                    effective_bet = max(st.session_state.unit, abs(st.session_state.bet_amount))
+                    if (previous_prediction == "Player" and result == 'P') or \
+                       (previous_prediction == "Banker" and result == 'B'):
+                        st.session_state.result_tracker += effective_bet
+                        st.session_state.consecutive_wins += 1
+                        st.session_state.consecutive_losses = 0
+                        if st.session_state.result_tracker > st.session_state.profit_lock:
+                            st.session_state.profit_lock = st.session_state.result_tracker
+                            reset_betting()
+                            st.info(f"New profit lock achieved: {st.session_state.profit_lock} units! Betting reset to 1 unit.")
+                            return
+                        if st.session_state.consecutive_wins >= 2:
+                            st.session_state.bet_amount = max(1, st.session_state.bet_amount - 1)
+                    else:
+                        st.session_state.result_tracker -= effective_bet
+                        st.session_state.consecutive_losses += 1
+                        st.session_state.consecutive_wins = 0
+                        if st.session_state.consecutive_losses >= 3:
+                            st.session_state.bet_amount = min(5, st.session_state.bet_amount * 2)
+                        else:
+                            st.session_state.bet_amount += 1
+
+        st.session_state.previous_result = result
+
+def undo():
+    if not st.session_state.state_history:
+        st.warning("No actions to undo.")
+        return
+    last_state = st.session_state.state_history.pop()
+    st.session_state.history = last_state['history']
+    st.session_state.pair_types = last_state['pair_types']
+    st.session_state.previous_result = last_state['previous_result']
+    st.session_state.result_tracker = last_state['result_tracker']
+    st.session_state.profit_lock = last_state['profit_lock']
+    st.session_state.bet_amount = last_state['bet_amount']
+    st.session_state.current_dominance = last_state['current_dominance']
+    st.session_state.next_prediction = last_state['next_prediction']
+    st.session_state.consecutive_wins = last_state['consecutive_wins']
+    st.session_state.consecutive_losses = last_state['consecutive_losses']
+    st.session_state.streak_type = last_state['streak_type']
+
+def reset_betting():
+    st.session_state.result_tracker = 0
+    st.session_state.bet_amount = st.session_state.unit
+    st.session_state.consecutive_wins = 0
+    st.session_state.consecutive_losses = 0
+    st.session_state.state_history = []
+
+    if len(st.session_state.pair_types) >= 5:
+        recent_pairs = st.session_state.pair_types[-10:]
+        odd_count = sum(1 for a, b in recent_pairs if a != b)
+        even_count = sum(1 for a, b in recent_pairs if a == b)
+        result = st.session_state.previous_result
+        if abs(odd_count - even_count) < 2:
+            st.session_state.current_dominance = "N/A"
+            st.session_state.next_prediction = "Hold"
+        elif odd_count > even_count:
+            st.session_state.current_dominance = "Odd"
+            st.session_state.next_prediction = "Player" if result == 'B' else "Banker"
+        else:
+            st.session_state.current_dominance = "Even"
+            st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
+        last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
+        if len(last_three) >= 3 and all(r == last_three[0] for r in last_three):
+            st.session_state.streak_type = last_three[0]
+            st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
+            st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
+    else:
+        st.session_state.next_prediction = "N/A"
+        st.session_state.current_dominance = "N/A"
+        st.session_state.streak_type = None
+
+def reset_all():
+    st.session_state.history = []
+    st.session_state.pair_types = []
+    st.session_state.previous_result = None
+    st.session_state.result_tracker = 0
+    st.session_state.profit_lock = 0
+    st.session_state.bet_amount = st.session_state.unit
+    st.session_state.next_prediction = "N/A"
+    st.session_state.current_dominance = "N/A"
+    st.session_state.consecutive_wins = 0
+    st.session_state.consecutive_losses = 0
+    st.session_state.streak_type = None
+    st.session_state.state_history = []
+    st.session_state.selected_patterns = ["Bead Bin"]
 
 if __name__ == "__main__":
     main()
