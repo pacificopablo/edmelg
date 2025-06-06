@@ -164,46 +164,74 @@ class BaccaratPredictor:
         # Set page configuration
         st.set_page_config(page_title="Baccarat Predictor", layout="centered")
 
-        # Custom CSS for styling
+        # Custom CSS for enhanced GUI
         st.markdown("""
             <style>
             .main {
                 background-color: #2C2F33;
                 color: white;
-                font-family: Helvetica, sans-serif;
+                font-family: Helvetica, Arial, sans-serif;
             }
             .stButton>button {
                 background-color: #7289DA;
                 color: white;
                 font-weight: bold;
-                padding: 10px;
+                padding: 12px;
                 border: none;
-                border-radius: 5px;
+                border-radius: 8px;
                 width: 120px;
-                margin: 5px;
+                margin: 10px;
+                transition: all 0.3s ease;
             }
             .stButton>button:hover {
                 background-color: #99AAB5;
+                transform: scale(1.05);
             }
             .title {
-                font-size: 24px;
+                font-size: 28px;
                 font-weight: bold;
                 text-align: center;
+                margin-bottom: 30px;
+                color: #FFFFFF;
+            }
+            .info-card {
+                background-color: #23272A;
+                padding: 20px;
+                border-radius: 10px;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
                 margin-bottom: 20px;
             }
-            .info-box {
-                background-color: #23272A;
-                padding: 10px;
-                border-radius: 5px;
-                margin-bottom: 20px;
+            .info-text {
+                font-size: 16px;
+                margin: 10px 0;
             }
-            .history-box {
-                background-color: #23272A;
+            .prediction-text {
+                font-size: 20px;
+                font-weight: bold;
                 padding: 10px;
                 border-radius: 5px;
-                max-height: 200px;
+                text-align: center;
+            }
+            .prediction-player {
+                background-color: #28a745;
+            }
+            .prediction-banker {
+                background-color: #dc3545;
+            }
+            .prediction-hold {
+                background-color: #6c757d;
+            }
+            .history-card {
+                background-color: #23272A;
+                padding: 15px;
+                border-radius: 10px;
+                max-height: 300px;
                 overflow-y: auto;
-                font-size: 14px;
+                margin-top: 20px;
+            }
+            .stDataFrame {
+                background-color: #23272A;
+                color: white;
             }
             </style>
         """, unsafe_allow_html=True)
@@ -213,38 +241,50 @@ class BaccaratPredictor:
 
         # Info section
         with st.container():
-            st.markdown('<div class="info-box">', unsafe_allow_html=True)
-            st.write(f"**Bet Amount:** {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)")
-            st.write(f"**Bankroll:** {st.session_state.result_tracker}")
-            st.write(f"**Profit Lock:** {st.session_state.profit_lock}")
-            st.write(f"**Bet:** {st.session_state.next_prediction}", key="prediction")
-            st.write(f"**Streak:** {st.session_state.streak_type if st.session_state.streak_type else 'None'}")
+            st.markdown('<div class="info-card">', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-text"><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-text"><b>Bankroll:</b> {st.session_state.result_tracker}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-text"><b>Profit Lock:</b> {st.session_state.profit_lock}</div>', unsafe_allow_html=True)
+            prediction_class = "prediction-player" if st.session_state.next_prediction == "Player" else \
+                              "prediction-banker" if st.session_state.next_prediction == "Banker" else \
+                              "prediction-hold"
+            st.markdown(f'<div class="prediction-text {prediction_class}"><b>Bet:</b> {st.session_state.next_prediction}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="info-text"><b>Streak:</b> {st.session_state.streak_type if st.session_state.streak_type else "None"}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # Result buttons
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col1:
-            if st.button("Player"):
-                self.record_result('P')
-                st.rerun()
-        with col2:
-            if st.button("Banker"):
-                self.record_result('B')
-                st.rerun()
-        with col3:
-            if st.button("Undo"):
-                self.undo()
-                st.rerun()
+        # Form for result buttons to reduce re-runs
+        with st.form(key="result_form"):
+            col1, col2, col3 = st.columns([1, 1, 1])
+            with col1:
+                player_clicked = st.form_submit_button("Player")
+            with col2:
+                banker_clicked = st.form_submit_button("Banker")
+            with col3:
+                undo_clicked = st.form_submit_button("Undo")
 
-        # Deal History
+            if player_clicked:
+                self.record_result('P')
+                st.experimental_rerun()
+            elif banker_clicked:
+                self.record_result('B')
+                st.experimental_rerun()
+            elif undo_clicked:
+                self.undo()
+                st.experimental_rerun()
+
+        # Deal History as a table
         st.markdown("**Deal History:**")
         with st.container():
-            st.markdown('<div class="history-box">', unsafe_allow_html=True)
-            history_text = ""
-            for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
-                pair_type = "Even" if pair[0] == pair[1] else "Odd"
-                history_text += f"{pair} ({pair_type})\n"
-            st.text(history_text)
+            st.markdown('<div class="history-card">', unsafe_allow_html=True)
+            if st.session_state.pair_types:
+                history_data = [
+                    {"Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
+                    for pair in st.session_state.pair_types[-100:]
+                ]
+                df = pd.DataFrame(history_data)
+                st.dataframe(df, use_container_width=True, height=200)
+            else:
+                st.text("No history yet.")
             st.markdown('</div>', unsafe_allow_html=True)
 
         # Session control buttons
@@ -252,16 +292,16 @@ class BaccaratPredictor:
         with col4:
             if st.button("Reset Bet"):
                 self.reset_betting()
-                st.rerun()
+                st.experimental_rerun()
         with col5:
             if st.button("Reset Session"):
                 self.reset_all()
-                st.rerun()
+                st.experimental_rerun()
         with col6:
             if st.button("New Session"):
                 self.reset_all()
                 st.success("New session started.")
-                st.rerun()
+                st.experimental_rerun()
 
 if __name__ == "__main__":
     app = BaccaratPredictor()
