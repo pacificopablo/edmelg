@@ -264,13 +264,13 @@ class BaccaratPredictor:
 
             if player_clicked:
                 self.record_result('P')
-                st.experimental_rerun()
+                st.rerun()
             elif banker_clicked:
                 self.record_result('B')
-                st.experimental_rerun()
+                st.rerun()
             elif undo_clicked:
                 self.undo()
-                st.experimental_rerun()
+                st.rerun()
 
         # Deal History as a table
         st.markdown("**Deal History:**")
@@ -292,16 +292,16 @@ class BaccaratPredictor:
         with col4:
             if st.button("Reset Bet"):
                 self.reset_betting()
-                st.experimental_rerun()
+                st.rerun()
         with col5:
             if st.button("Reset Session"):
                 self.reset_all()
-                st.experimental_rerun()
+                st.rerun()
         with col6:
             if st.button("New Session"):
                 self.reset_all()
                 st.success("New session started.")
-                st.experimental_rerun()
+                st.rerun()
 
 if __name__ == "__main__":
     app = BaccaratPredictor()
