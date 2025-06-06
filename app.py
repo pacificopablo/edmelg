@@ -165,7 +165,7 @@ class BaccaratPredictor:
         # Set page configuration
         st.set_page_config(page_title="Baccarat Predictor", layout="centered")
 
-        # Custom CSS for professional look
+        # Custom CSS for professional look with mobile optimization
         st.markdown("""
             <style>
             .main {
@@ -177,18 +177,27 @@ class BaccaratPredictor:
                 background: linear-gradient(45deg, #5865F2, #7289DA);
                 color: white;
                 font-weight: 600;
+                font-size: 16px;
                 padding: 12px 20px;
                 border: none;
                 border-radius: 10px;
                 width: 140px;
-                margin: 10px;
+                margin: 5px;
                 box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+                text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
                 transition: all 0.3s ease;
             }
             .stButton>button:hover {
                 background: linear-gradient(45deg, #99AAB5, #B0B7C3);
                 transform: translateY(-2px);
                 box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            }
+            @media (max-width: 768px) {
+                .stButton>button {
+                    font-size: 14px;
+                    width: 120px;
+                    padding: 10px 15px;
+                }
             }
             .title {
                 font-size: 32px;
@@ -210,6 +219,12 @@ class BaccaratPredictor:
                 font-size: 16px;
                 margin: 12px 0;
                 color: #DCDDDE;
+            }
+            .section-label {
+                font-size: 18px;
+                font-weight: 600;
+                color: #B9BBBE;
+                margin-top: 20px;
             }
             .prediction-text {
                 font-size: 22px;
@@ -273,6 +288,15 @@ class BaccaratPredictor:
             .odd-row {
                 background-color: rgba(211, 47, 47, 0.2);
             }
+            @media (max-width: 768px) {
+                .history-table th, .history-table td {
+                    font-size: 12px;
+                    padding: 8px;
+                }
+                .history-card {
+                    max-height: 200px;
+                }
+            }
             .message-box {
                 font-size: 14px;
                 padding: 12px;
@@ -316,7 +340,7 @@ class BaccaratPredictor:
         # Single form for all buttons
         with st.form(key="main_form"):
             # Result buttons
-            st.markdown("**Record Result:**")
+            st.markdown('<div class="section-label">Record Result:</div>', unsafe_allow_html=True)
             col1, col2, col3 = st.columns([1, 1, 1])
             with col1:
                 player_clicked = st.form_submit_button("Player")
@@ -326,7 +350,7 @@ class BaccaratPredictor:
                 undo_clicked = st.form_submit_button("Undo")
 
             # Session control buttons
-            st.markdown("**Session Controls:**")
+            st.markdown('<div class="section-label">Session Controls:</div>', unsafe_allow_html=True)
             col4, col5, col6 = st.columns([1, 1, 1])
             with col4:
                 reset_bet_clicked = st.form_submit_button("Reset Bet")
@@ -354,7 +378,7 @@ class BaccaratPredictor:
                 st.rerun()
 
         # Deal History as a styled table
-        st.markdown("**Deal History:**")
+        st.markdown('<div class="section-label">Deal History:</div>', unsafe_allow_html=True)
         with st.container():
             st.markdown('<div class="history-card">', unsafe_allow_html=True)
             if st.session_state.pair_types:
@@ -362,11 +386,11 @@ class BaccaratPredictor:
                     {"Index": i + 1, "Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
                     for i, pair in enumerate(st.session_state.pair_types[-100:])
                 ]
-                history_html = '<table class="history-table"><tr><th>Index</th><th>Pair</th><th>Type</th></tr>'
+                history_html = '<div style="overflow-x: auto;"><table class="history-table"><tr><th>Index</th><th>Pair</th><th>Type</th></tr>'
                 for row in history_data:
                     row_class = "even-row" if row["Type"] == "Even" else "odd-row"
                     history_html += f'<tr class="{row_class}"><td>{row["Index"]}</td><td>{row["Pair"]}</td><td>{row["Type"]}</td></tr>'
-                history_html += '</table>'
+                history_html += '</table></div>'
                 st.markdown(history_html, unsafe_allow_html=True)
             else:
                 st.markdown('<div class="info-text">No history yet.</div>', unsafe_allow_html=True)
