@@ -239,17 +239,17 @@ def main():
                     width: 100%;
                     padding: 10px;
                     margin: 5px 0;
-                    background: linear-gradient(to right, #4CAF50, #81C784);
+                    background: #4CAF50;
                     color: white;
                     border: none;
                     border-radius: 5px;
                     font-size: 1rem;
                 }
                 .stButton > button:hover {
-                    background: linear-gradient(to right, #81C784, #4CAF50);
+                    background: #4CAF50;
                 }
                 .stButton > button:disabled {
-                    background: #cccccc;
+                    background: #4CAF50;
                     cursor: not-allowed;
                 }
                 .stExpander {
