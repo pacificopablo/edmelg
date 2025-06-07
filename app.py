@@ -5,91 +5,6 @@ import time
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Cache grid-building functions with hashable input
-@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
-def build_big_road(s):
-    logging.debug(f"Building Big Road with history: {s}")
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    last_outcome = None
-    for result in s:
-        mapped = 'P' if result == 'Player' else 'B' if result == 'Banker' else 'T'
-        if mapped == 'T':
-            if col < max_cols and row < max_rows and grid[row][col] == '':
-                grid[row][col] = 'T'
-            continue
-        if col >= max_cols:
-            break
-        if last_outcome is None or (mapped == last_outcome and row < max_rows - 1):
-            grid[row][col] = mapped
-            row += 1
-        else:
-            col += 1
-            row = 0
-            if col < max_cols:
-                grid[row][col] = mapped
-                row += 1
-        last_outcome = mapped if mapped != 'T' else last_outcome
-    logging.debug(f"Big Road grid: {grid}, cols: {min(col + 1, max_cols)}")
-    return grid, min(col + 1, max_cols)
-
-@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
-def build_big_eye_boy(big_road_grid, num_cols):
-    logging.debug(f"Building Big Eye Boy with num_cols: {num_cols}")
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    for c in range(2, num_cols):
-        if col >= max_cols:
-            break
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        third_last = [big_road_grid[r][c - 2] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        third_non_empty = next((i for i, x in enumerate(third_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and third_non_empty is not None:
-            grid[row][col] = 'R' if last_col[last_non_empty] == third_last[third_non_empty] else 'B'
-            row += 1
-            if row >= max_rows:
-                col += 1
-                row = 0
-        else:
-            col += 1
-            row = 0
-    logging.debug(f"Big Eye Boy grid: {grid}, cols: {min(col + 1 if row > 0 else col, max_cols)}")
-    return grid, min(col + 1 if row > 0 else col, max_cols)
-
-@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
-def build_cockroach_pig(big_road_grid, num_cols):
-    logging.debug(f"Building Cockroach Pig with num_cols: {num_cols}")
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    for c in range(3, num_cols):
-        if col >= max_cols:
-            break
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        fourth_last = [big_road_grid[r][c - 3] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        fourth_non_empty = next((i for i, x in enumerate(fourth_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and fourth_non_empty is not None:
-            grid[row][col] = 'R' if last_col[last_non_empty] == fourth_last[fourth_non_empty] else 'B'
-            row += 1
-            if row >= max_rows:
-                col += 1
-                row = 0
-        else:
-            col += 1
-            row = 0
-    logging.debug(f"Cockroach Pig grid: {grid}, cols: {min(col + 1 if row > 0 else col, max_cols)}")
-    return grid, min(col + 1 if row > 0 else col, max_cols)
-
 def handle_button_action(action, result=None):
     """Handle button actions with logging."""
     try:
@@ -274,14 +189,13 @@ def reset_all():
         st.session_state.previous_result = None
         st.session_state.result_tracker = 0
         st.session_state.profit_lock = 0
-        st.session_state.bet_amount = st.session_state.unit
+        st.session_state.bet_amount = '1'
         st.session_state.next_prediction = "N/A"
         st.session_state.current_dominance = "N/A"
         st.session_state.consecutive_wins = 0
         st.session_state.consecutive_losses = 0
         st.session_state.streak_type = None
         st.session_state.state_history = []
-        st.session_state.selected_patterns = ['Bead Bin']
         st.session_state.button_feedback = ""
         st.session_state.pattern_update_trigger = time.time()
     except Exception as e:
@@ -291,7 +205,7 @@ def reset_all():
 def main():
     try:
         st.set_page_config(page_title="Mang Baccarat Tracker", page_icon="🎲", layout="wide")
-        st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
+        st.title("Baccarat Tracker with Enhanced Dominant Pairs")
 
         # Initialize session state
         for key, value in {
@@ -308,7 +222,6 @@ def main():
             'consecutive_losses': 0,
             'streak_type': None,
             'state_history': [],
-            'selected_patterns': ['Bead Bin'],
             'screen_width': 1024,
             'button_feedback': "",
             'pattern_update_trigger': time.time()
@@ -353,9 +266,6 @@ def main():
                 .stButton > button:disabled {
                     background: #cccccc;
                     cursor: not-allowed;
-                }
-                .stSelectbox {
-                    width: 100% !important;
                 }
                 .stExpander {
                     margin-bottom: 10px;
@@ -410,23 +320,18 @@ def main():
                         font-size: 0.9rem;
                         padding: 8px;
                     }
-                    .stSelectbox div {
-                        font-size: 0.9rem;
-                    }
                 }
             </style>
             <script>
                 function autoScrollPatterns() {
-                    ['bead-bin-scroll', 'big-road-scroll', 'big-eye-boy-scroll', 'cockroach-pig-scroll', 'deal-history-scroll'].forEach(id => {
-                        try {
-                            const el = document.getElementById(id);
-                            if (el) {
-                                el.scrollLeft = el.scrollWidth;
-                            }
-                        } catch (e) {
-                            console.error(`Error scrolling element ${id}: ${e}`);
+                    try {
+                        const el = document.getElementById('bead-plate-scroll');
+                        if (el) {
+                            el.scrollLeft = el.scrollWidth;
                         }
-                    });
+                    } catch (e) {
+                        console.error(`Error scrolling element bead-plate-scroll: ${e}`);
+                    }
                 }
                 window.onload = autoScrollPatterns;
                 window.onresize = autoScrollPatterns;
@@ -503,22 +408,6 @@ def main():
 
         # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=True):
-            pattern_options = ["Big Road", "Big Eye Boy", "Cockroach Pig"]
-            selected_patterns = st.session_state.selected_patterns
-            if "Bead Bin" not in selected_patterns:
-                selected_patterns = ["Bead Bin"] + selected_patterns
-            selected_patterns = st.multiselect(
-                "Select Additional Patterns to Display",
-                pattern_options,
-                default=[p for p in selected_patterns if p != "Bead Bin"],
-                key="pattern_select"
-            )
-            st.session_state.selected_patterns = ["Bead Bin"] + selected_patterns
-            logging.debug(f"Selected patterns: {st.session_state.selected_patterns}")
-
-            # Dynamic column calculation based on screen width
-            max_display_cols = 6 if st.session_state.screen_width < 768 else 12
-
             def render_pattern_grid(grid, num_cols, pattern_name, color_map, max_cols):
                 """Helper function to render a pattern grid with scrolling."""
                 try:
@@ -543,33 +432,21 @@ def main():
                     logging.error(f"Error rendering {pattern_name}: {str(e)}")
                     st.error(f"Error rendering {pattern_name}: {str(e)}")
 
-            # Define color mappings for each pattern
+            # Define color mapping for Bead Plate
             color_maps = {
-                "Bead Bin": {
+                "Bead Plate": {
                     'P': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"},
                     'B': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"},
                     'T': {"style": "border: 2px solid #4CAF50; border-radius: 50%;"}
-                },
-                "Big Road": {
-                    'P': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"},
-                    'B': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"},
-                    'T': {"style": "border: 2px solid #4CAF50; border-radius: 50%;"}
-                },
-                "Big Eye Boy": {
-                    'R': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #000;"},
-                    'B': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"}
-                },
-                "Cockroach Pig": {
-                    'R': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #000;"},
-                    'B': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"}
                 }
             }
 
             if st.session_state.history:
-                logging.debug(f"Rendering patterns with history: {st.session_state.history}")
-                st.markdown("### Bead Bin")
+                logging.debug(f"Rendering Bead Plate with history: {st.session_state.history}")
+                st.markdown("### Bead Plate")
                 try:
                     sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-84:]
+                    max_display_cols = 6 if st.session_state.screen_width < 768 else 12
                     grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
                     num_cols = 0
                     for i, result in enumerate(sequence):
@@ -578,32 +455,13 @@ def main():
                         if col < max_display_cols:
                             grid[row][col] = result
                             num_cols = max(num_cols, col + 1)
-                    render_pattern_grid(grid, num_cols, "Bead Bin", color_maps["Bead Bin"], max_display_cols)
+                    render_pattern_grid(grid, num_cols, "Bead Plate", color_maps["Bead Plate"], max_display_cols)
                 except Exception as e:
-                    logging.error(f"Error processing Bead Bin: {str(e)}")
-                    st.error(f"Error processing Bead Bin: {str(e)}")
-
-                if "Big Road" in selected_patterns:
-                    st.markdown("### Big Road")
-                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                    render_pattern_grid(big_road_grid, num_cols, "Big Road", color_maps["Big Road"], max_display_cols)
-
-                if "Big Eye Boy" in selected_patterns:
-                    st.markdown("### Big Eye Boy")
-                    st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
-                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                    big_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
-                    render_pattern_grid(big_eye_grid, big_eye_cols, "Big Eye Boy", color_maps["Big Eye Boy"], max_display_cols)
-
-                if "Cockroach Pig" in selected_patterns:
-                    st.markdown("### Cockroach Pig")
-                    st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
-                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                    cockroach_grid, cockroach_cols = build_cockroach_pig(big_road_grid, num_cols)
-                    render_pattern_grid(cockroach_grid, cockroach_cols, "Cockroach Pig", color_maps["Cockroach Pig"], max_display_cols)
+                    logging.error(f"Error processing Bead Plate: {str(e)}")
+                    st.error(f"Error processing Bead Plate: {str(e)}")
             else:
-                st.markdown("No history available to display patterns.")
-                logging.debug("No history for patterns")
+                st.markdown("No history available to display Bead Plate.")
+                logging.debug("No history for Bead Plate")
 
         # Debug state on error
         if st.session_state.button_feedback.startswith("Error"):
