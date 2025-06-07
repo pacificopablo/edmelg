@@ -5,9 +5,10 @@ import time
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Cache grid-building functions
-@st.cache_data
+# Cache grid-building functions with hashable input
+@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
 def build_big_road(s):
+    logging.debug(f"Building Big Road with history: {s}")
     max_rows = 6
     max_cols = 30
     grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
@@ -32,20 +33,22 @@ def build_big_road(s):
                 grid[row][col] = mapped
                 row += 1
         last_outcome = mapped if mapped != 'T' else last_outcome
+    logging.debug(f"Big Road grid: {grid}, cols: {min(col + 1, max_cols)}")
     return grid, min(col + 1, max_cols)
 
-@st.cache_data
+@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
 def build_big_eye_boy(big_road_grid, num_cols):
+    logging.debug(f"Building Big Eye Boy with num_cols: {num_cols}")
     max_rows = 6
     max_cols = 30
     grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
     col = 0
     row = 0
-    for c in range(2, num_cols):  # Adjusted range start from 3 to 2
+    for c in range(2, num_cols):
         if col >= max_cols:
             break
         last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        third_last = [big_road_grid[r][c - 2] for r in range(max_rows)]  # Adjusted to c - 2
+        third_last = [big_road_grid[r][c - 2] for r in range(max_rows)]
         last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
         third_non_empty = next((i for i, x in enumerate(third_last) if x in ['P', 'B']), None)
         if last_non_empty is not None and third_non_empty is not None:
@@ -57,20 +60,22 @@ def build_big_eye_boy(big_road_grid, num_cols):
         else:
             col += 1
             row = 0
+    logging.debug(f"Big Eye Boy grid: {grid}, cols: {min(col + 1 if row > 0 else col, max_cols)}")
     return grid, min(col + 1 if row > 0 else col, max_cols)
 
-@st.cache_data
+@st.cache_data(hash_funcs={tuple: lambda x: hash(str(x))})
 def build_cockroach_pig(big_road_grid, num_cols):
+    logging.debug(f"Building Cockroach Pig with num_cols: {num_cols}")
     max_rows = 6
     max_cols = 30
     grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
     col = 0
     row = 0
-    for c in range(3, num_cols):  # Adjusted range start from 4 to 3
+    for c in range(3, num_cols):
         if col >= max_cols:
             break
         last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        fourth_last = [big_road_grid[r][c - 3] for r in range(max_rows)]  # Adjusted to c - 3
+        fourth_last = [big_road_grid[r][c - 3] for r in range(max_rows)]
         last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
         fourth_non_empty = next((i for i, x in enumerate(fourth_last) if x in ['P', 'B']), None)
         if last_non_empty is not None and fourth_non_empty is not None:
@@ -82,6 +87,7 @@ def build_cockroach_pig(big_road_grid, num_cols):
         else:
             col += 1
             row = 0
+    logging.debug(f"Cockroach Pig grid: {grid}, cols: {min(col + 1 if row > 0 else col, max_cols)}")
     return grid, min(col + 1 if row > 0 else col, max_cols)
 
 def handle_button_action(action, result=None):
@@ -97,7 +103,8 @@ def handle_button_action(action, result=None):
                 st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
                 record_result(result)
                 st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
-                logging.info(f"Result {result} recorded")
+                st.session_state.pattern_update_trigger = time.time()  # Force re-render
+                logging.info(f"Result {result} recorded, history: {st.session_state.history}")
 
             elif action == "undo":
                 if not st.session_state.state_history:
@@ -108,16 +115,19 @@ def handle_button_action(action, result=None):
                     for key, value in last_state.items():
                         st.session_state[key] = value
                     st.session_state.button_feedback = "Undid last action."
-                    logging.info("Undo successful")
+                    st.session_state.pattern_update_trigger = time.time()  # Force re-render
+                    logging.info(f"Undo successful, history: {st.session_state.history}")
 
             elif action == "reset_betting":
                 reset_betting()
                 st.session_state.button_feedback = "Betting reset."
+                st.session_state.pattern_update_trigger = time.time()  # Force re-render
                 logging.info("Betting reset")
 
             elif action == "reset_all":
                 reset_all()
                 st.session_state.button_feedback = "Started new session."
+                st.session_state.pattern_update_trigger = time.time()  # Force re-render
                 logging.info("Session reset")
 
             if st.session_state.button_feedback:
@@ -271,8 +281,9 @@ def reset_all():
         st.session_state.consecutive_losses = 0
         st.session_state.streak_type = None
         st.session_state.state_history = []
-        st.session_state.selected_patterns = ['Bead Bin']  # Ensure Bead Bin is always included
+        st.session_state.selected_patterns = ['Bead Bin']
         st.session_state.button_feedback = ""
+        st.session_state.pattern_update_trigger = time.time()
     except Exception as e:
         logging.error(f"Error in reset_all: {str(e)}")
         raise e
@@ -297,9 +308,10 @@ def main():
             'consecutive_losses': 0,
             'streak_type': None,
             'state_history': [],
-            'selected_patterns': ['Bead Bin'],  # Ensure Bead Bin is always included
+            'selected_patterns': ['Bead Bin'],
             'screen_width': 1024,
-            'button_feedback': ""
+            'button_feedback': "",
+            'pattern_update_trigger': time.time()
         }.items():
             if key not in st.session_state:
                 st.session_state[key] = value
@@ -428,6 +440,9 @@ def main():
         except ValueError:
             st.session_state.screen_width = 1024
 
+        # Force re-render by referencing pattern_update_trigger
+        st.session_state.pattern_update_trigger
+
         # Prediction and Betting Info
         with st.expander("Prediction and Betting Info", expanded=True):
             bet_color = "#2196F3" if st.session_state.next_prediction == "Player" else "#F44336" if st.session_state.next_prediction == "Banker" else "#B0BEC5"
@@ -499,6 +514,7 @@ def main():
                 key="pattern_select"
             )
             st.session_state.selected_patterns = ["Bead Bin"] + selected_patterns
+            logging.debug(f"Selected patterns: {st.session_state.selected_patterns}")
 
             # Dynamic column calculation based on screen width
             max_display_cols = 6 if st.session_state.screen_width < 768 else 12
@@ -519,9 +535,10 @@ def main():
                                 style = color_map[outcome]["style"]
                                 row_display.append(f'<div class="pattern-circle" style="{style}"></div>')
                             else:
-                                row_display.append('<div class="display-circle"></div>')
+                                row_display.append(f'<div class="display-circle"></div>')
                         st.markdown(''.join(row_display), unsafe_allow_html=True)
                     st.markdown('</div>', unsafe_allow_html=True)
+                    logging.debug(f"Rendered {pattern_name} with {display_cols} columns")
                 except Exception as e:
                     logging.error(f"Error rendering {pattern_name}: {str(e)}")
                     st.error(f"Error rendering {pattern_name}: {str(e)}")
@@ -549,6 +566,7 @@ def main():
             }
 
             if st.session_state.history:
+                logging.debug(f"Rendering patterns with history: {st.session_state.history}")
                 st.markdown("### Bead Bin")
                 try:
                     sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-84:]
@@ -585,6 +603,7 @@ def main():
                     render_pattern_grid(cockroach_grid, cockroach_cols, "Cockroach Pig", color_maps["Cockroach Pig"], max_display_cols)
             else:
                 st.markdown("No history available to display patterns.")
+                logging.debug("No history for patterns")
 
         # Debug state on error
         if st.session_state.button_feedback.startswith("Error"):
