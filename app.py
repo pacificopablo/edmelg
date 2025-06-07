@@ -279,11 +279,13 @@ def main():
                 p, div, span {
                     font-size: 1rem;
                 }
-                .pattern-circle, .display-circle {
+                .history-circle {
                     width: 18px;
                     height: 18px;
                     display: inline-block;
                     margin: 2px;
+                    border-radius: 50%;
+                    border: 1px solid #fff;
                 }
                 .info-box {
                     background-color: #2C2F33;
@@ -311,7 +313,7 @@ def main():
                     p, div, span {
                         font-size: 0.9rem;
                     }
-                    .pattern-circle, .display-circle {
+                    .history-circle {
                         width: 14px !important;
                         height: 14px !important;
                     }
@@ -322,18 +324,18 @@ def main():
                 }
             </style>
             <script>
-                function autoScrollPatterns() {
+                function autoScrollHistory() {
                     try {
-                        const el = document.getElementById('bead-plate-scroll');
+                        const el = document.getElementById('shoe-history-scroll');
                         if (el) {
                             el.scrollLeft = el.scrollWidth;
                         }
                     } catch (e) {
-                        console.error('Error scrolling element bead-plate-scroll: ' + e + ')');
+                        console.error('Error scrolling element shoe-history-scroll: ' + e + ')');
                     }
                 }
-                window.onload = autoScrollPatterns;
-                window.onresize = autoScrollPatterns;
+                window.onload = autoScrollHistory;
+                window.onresize = autoScrollHistory;
             </script>
         """, unsafe_allow_html=True)
 
@@ -405,65 +407,31 @@ def main():
                 logging.error(f"Error rendering Deal History: {str(e)}")
                 st.error(f"Error rendering Deal History: {str(e)}")
 
-        # Shoe Patterns
-        with st.expander("Shoe Patterns", expanded=True):
-            # Reference counter to ensure re-render
-            st.session_state.pattern_update_counter
-
-            def render_pattern_grid(grid, num_cols, pattern_name, color_map, max_cols):
-                """Helper function to render a pattern grid with scrolling."""
-                try:
-                    if num_cols == 0:
-                        st.markdown(f"No {pattern_name} data available.")
-                        return
-                    display_cols = min(num_cols, max_cols)
-                    st.markdown(f'<div id="{pattern_name.lower().replace(" ", "-")}-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                    for row in range(6):
-                        row_display = []
-                        for col in range(display_cols):
-                            outcome = grid[row][col]
-                            if outcome in color_map:
-                                style = color_map[outcome]["style"]
-                                row_display.append(f'<div class="pattern-circle" style="{style}"></div>')
-                            else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(''.join(row_display), unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                    logging.debug(f"Rendered {pattern_name} with {display_cols} columns")
-                except Exception as e:
-                    logging.error(f"Error rendering {pattern_name}: {str(e)}")
-                    st.error(f"Error rendering {pattern_name}: {str(e)}")
-
-            # Define color mapping for Bead Plate
-            color_maps = {
-                "Bead Plate": {
-                    'P': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"},
-                    'B': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"},
-                    'T': {"style": "border: 2px solid #4CAF50; border-radius: 50%;"}
-                }
-            }
-
-            if st.session_state.history:
-                logging.debug(f"Rendering Bead Plate with history: {st.session_state.history}")
-                st.markdown("### Bead Plate")
-                try:
-                    sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-84:]
-                    max_display_cols = 6 if st.session_state.screen_width < 768 else 12
-                    grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
-                    num_cols = 0
-                    for i, result in enumerate(sequence):
-                        row = i % 6
-                        col = i // 6
-                        if col < max_display_cols:
-                            grid[row][col] = result
-                            num_cols = max(num_cols, col + 1)
-                    render_pattern_grid(grid, num_cols, "Bead Plate", color_maps["Bead Plate"], max_display_cols)
-                except Exception as e:
-                    logging.error(f"Error processing Bead Plate: {str(e)}")
-                    st.error(f"Error processing Bead Plate: {str(e)}")
-            else:
-                st.markdown("No history available to display Bead Plate.")
-                logging.debug("No history for Bead Plate")
+        # Shoe History
+        with st.expander("Shoe History", expanded=True):
+            st.markdown("### Shoe History")
+            try:
+                st.markdown('<div id="shoe-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                if st.session_state.history:
+                    color_map = {
+                        'P': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"},
+                        'B': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"},
+                        'T': {"style": "border: 2px solid #4CAF50; border-radius: 50%;"}
+                    }
+                    sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-100:]  # Limit to last 100 for performance
+                    history_display = []
+                    for result in sequence:
+                        style = color_map[result]["style"]
+                        history_display.append(f'<div class="history-circle" style="{style}"></div>')
+                    st.markdown(''.join(history_display), unsafe_allow_html=True)
+                    logging.debug(f"Rendered Shoe History with {len(sequence)} results")
+                else:
+                    st.markdown("No shoe history yet.")
+                    logging.debug("No shoe history to render")
+                st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e:
+                logging.error(f"Error rendering Shoe History: {str(e)}")
+                st.error(f"Error rendering Shoe History: {str(e)}")
 
         # Debug state on error
         if st.session_state.button_feedback.startswith("Error"):
