@@ -1,6 +1,5 @@
 import streamlit as st
 import logging
-import time
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,8 +17,8 @@ def handle_button_action(action, result=None):
                 st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
                 record_result(result)
                 st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
-                st.session_state.pattern_update_trigger = time.time()  # Force re-render
-                logging.info(f"Result {result} recorded, history: {st.session_state.history}")
+                st.session_state.pattern_update_counter += 1  # Increment to force re-render
+                logging.info(f"Result {result} recorded, history: {st.session_state.history}, counter: {st.session_state.pattern_update_counter}")
 
             elif action == "undo":
                 if not st.session_state.state_history:
@@ -30,19 +29,19 @@ def handle_button_action(action, result=None):
                     for key, value in last_state.items():
                         st.session_state[key] = value
                     st.session_state.button_feedback = "Undid last action."
-                    st.session_state.pattern_update_trigger = time.time()  # Force re-render
-                    logging.info(f"Undo successful, history: {st.session_state.history}")
+                    st.session_state.pattern_update_counter += 1  # Increment to force re-render
+                    logging.info(f"Undo successful, history: {st.session_state.history}, counter: {st.session_state.pattern_update_counter}")
 
             elif action == "reset_betting":
                 reset_betting()
                 st.session_state.button_feedback = "Betting reset."
-                st.session_state.pattern_update_trigger = time.time()  # Force re-render
+                st.session_state.pattern_update_counter += 1  # Increment to force re-render
                 logging.info("Betting reset")
 
             elif action == "reset_all":
                 reset_all()
                 st.session_state.button_feedback = "Started new session."
-                st.session_state.pattern_update_trigger = time.time()  # Force re-render
+                st.session_state.pattern_update_counter += 1  # Increment to force re-render
                 logging.info("Session reset")
 
             if st.session_state.button_feedback:
@@ -189,7 +188,7 @@ def reset_all():
         st.session_state.previous_result = None
         st.session_state.result_tracker = 0
         st.session_state.profit_lock = 0
-        st.session_state.bet_amount = '1'
+        st.session_state.bet_amount = st.session_state.unit
         st.session_state.next_prediction = "N/A"
         st.session_state.current_dominance = "N/A"
         st.session_state.consecutive_wins = 0
@@ -197,7 +196,7 @@ def reset_all():
         st.session_state.streak_type = None
         st.session_state.state_history = []
         st.session_state.button_feedback = ""
-        st.session_state.pattern_update_trigger = time.time()
+        st.session_state.pattern_update_counter = 0
     except Exception as e:
         logging.error(f"Error in reset_all: {str(e)}")
         raise e
@@ -205,7 +204,7 @@ def reset_all():
 def main():
     try:
         st.set_page_config(page_title="Mang Baccarat Tracker", page_icon="🎲", layout="wide")
-        st.title("Baccarat Tracker with Enhanced Dominant Pairs")
+        st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
 
         # Initialize session state
         for key, value in {
@@ -224,7 +223,7 @@ def main():
             'state_history': [],
             'screen_width': 1024,
             'button_feedback': "",
-            'pattern_update_trigger': time.time()
+            'pattern_update_counter': 0
         }.items():
             if key not in st.session_state:
                 st.session_state[key] = value
@@ -330,7 +329,7 @@ def main():
                             el.scrollLeft = el.scrollWidth;
                         }
                     } catch (e) {
-                        console.error(`Error scrolling element bead-plate-scroll: ${e}`);
+                        console.error('Error scrolling element bead-plate-scroll: ' + e + ')');
                     }
                 }
                 window.onload = autoScrollPatterns;
@@ -339,14 +338,14 @@ def main():
         """, unsafe_allow_html=True)
 
         # Screen width
-        st.text_input("Screen Width", value=str(st.session_state.screen_width), disabled=True, key="screen_width_input")
+        st.text_input("Screen Width", value=str(st.session_state.screen_width), disabled=True, key="screen_width")
         try:
             st.session_state.screen_width = int(st.session_state.screen_width) if str(st.session_state.screen_width).isdigit() else 1024
         except ValueError:
             st.session_state.screen_width = 1024
 
-        # Force re-render by referencing pattern_update_trigger
-        st.session_state.pattern_update_trigger
+        # Debug: Display current history
+        st.markdown(f"**Debug History**: {st.session_state.history}", unsafe_allow_html=True)
 
         # Prediction and Betting Info
         with st.expander("Prediction and Betting Info", expanded=True):
@@ -408,6 +407,9 @@ def main():
 
         # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=True):
+            # Reference counter to ensure re-render
+            st.session_state.pattern_update_counter
+
             def render_pattern_grid(grid, num_cols, pattern_name, color_map, max_cols):
                 """Helper function to render a pattern grid with scrolling."""
                 try:
@@ -450,8 +452,8 @@ def main():
                     grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
                     num_cols = 0
                     for i, result in enumerate(sequence):
-                        col = i // 6
                         row = i % 6
+                        col = i // 6
                         if col < max_display_cols:
                             grid[row][col] = result
                             num_cols = max(num_cols, col + 1)
