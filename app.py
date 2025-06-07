@@ -243,12 +243,14 @@ def main():
 
         # Display prediction and betting info
         with st.expander("Prediction and Betting Info", expanded=True):
+            bet_color = "#3182ce" if st.session_state.next_prediction == "Player" else "#e53e3e" if st.session_state.next_prediction == "Banker" else "#ffffff"
+            bet_display = f"<span style='font-weight: bold; background-color: {bet_color}; color: white; padding: 2px 5px; border-radius: 3px;'>{st.session_state.next_prediction}</span>"
             st.markdown(f"""
                 <div class='info-box'>
                     <p><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</p>
                     <p><b>Bankroll:</b> {st.session_state.result_tracker}</p>
                     <p><b>Profit Lock:</b> {st.session_state.profit_lock}</p>
-                    <p><b>Bet:</b> {st.session_state.next_prediction}</p>
+                    <p><b>Bet:</b> {bet_display}</p>
                     <p><b>Current Dominance:</b> {st.session_state.current_dominance}</p>
                     <p><b>Streak:</b> {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
                 </div>
