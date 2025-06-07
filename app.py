@@ -1,15 +1,15 @@
-import streamlit as st
+import streamlit as st st nm ko
 import logging
 import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Cache grid-building functions (simplified for performance)
+# Cache grid-building functions
 @st.cache_data
 def build_big_road(s):
     max_rows = 6
-    max_cols = 30  # Reduced for performance
+    max_cols = 30
     grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
     col = 0
     row = 0
@@ -85,59 +85,52 @@ def build_cockroach_pig(big_road_grid, num_cols):
     return grid, col + 1 if row > 0 else col
 
 def handle_button_action(action, result=None):
-    """Handle button actions with logging and feedback."""
+    """Handle button actions with logging."""
     try:
-        logging.info(f"Processing action: {action}, result: {result}")
+        logging.info(f"Handling action: {action}, result: {result}")
+        feedback_placeholder = st.session_state.feedback_placeholder
+        feedback_placeholder.empty()  # Clear previous feedback
         st.session_state.button_feedback = ""
-        feedback_placeholder = st.session_state.get('feedback_placeholder', st.empty())
-
-        if action == "record_result" and result in ['P', 'B', 'T']:
-            with feedback_placeholder.container():
-                st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
-            record_result(result)
-            st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
-            logging.info(f"Result {result} recorded successfully")
-
-        elif action == "undo":
-            if not st.session_state.state_history:
-                st.session_state.button_feedback = "No actions to undo."
-                logging.warning("No actions to undo")
-                return
-            last_state = st.session_state.state_history.pop()
-            for key, value in last_state.items():
-                st.session_state[key] = value
-            st.session_state.button_feedback = "Undid last action."
-            logging.info("Undo successful")
-
-        elif action == "reset_betting":
-            st.session_state.result_tracker = 0
-            st.session_state.bet_amount = st.session_state.unit
-            st.session_state.consecutive_wins = 0
-            st.session_state.consecutive_losses = 0
-            st.session_state.state_history = []
-            update_prediction()
-            st.session_state.button_feedback = "Betting reset."
-            logging.info("Betting reset successful")
-
-        elif action == "reset_all":
-            reset_all()
-            st.session_state.button_feedback = "Started new session."
-            logging.info("Session reset successful")
 
         with feedback_placeholder.container():
+            if action == "record_result" and result in ['P', 'B', 'T']:
+                st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
+                record_result(result)
+                st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
+                logging.info(f"Result {result} recorded")
+
+            elif action == "undo":
+                if not st.session_state.state_history:
+                    st.session_state.button_feedback = "No actions to undo."
+                    logging.warning("No actions to undo")
+                else:
+                    last_state = st.session_state.state_history.pop()
+                    for key, value in last_state.items():
+                        st.session_state[key] = value
+                    st.session_state.button_feedback = "Undid last action."
+                    logging.info("Undo successful")
+
+            elif action == "reset_betting":
+                reset_betting()
+                st.session_state.button_feedback = "Betting reset."
+                logging.info("Betting reset")
+
+            elif action == "reset_all":
+                reset_all()
+                st.session_state.button_feedback = "Started new session."
+                logging.info("Session reset")
+
             if st.session_state.button_feedback:
                 st.markdown(f"<div class='feedback-box'>{st.session_state.button_feedback}</div>", unsafe_allow_html=True)
     except Exception as e:
         logging.error(f"Error in handle_button_action: {str(e)}")
         st.session_state.button_feedback = f"Error: {str(e)}"
-        with feedback_placeholder.container():
-            st.error(f"Action failed: {str(e)}")
+        feedback_placeholder.markdown(f"<div class='feedback-box'>Error: {str(e)}</div>", unsafe_allow_html=True)
 
 def record_result(result):
-    """Record game result with state backup."""
+    """Record game result."""
     try:
         logging.info(f"Recording result: {result}")
-        # Backup state for undo
         state = {
             'history': st.session_state.history.copy(),
             'pair_types': st.session_state.pair_types.copy(),
@@ -153,7 +146,6 @@ def record_result(result):
         }
         st.session_state.state_history.append(state)
 
-        # Append result
         st.session_state.history.append('Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie')
 
         if result == 'T':
@@ -170,16 +162,14 @@ def record_result(result):
         raise e
 
 def update_prediction_and_betting(result):
-    """Update prediction and betting logic."""
+    """Update prediction and betting."""
     try:
-        # Check for streak
         last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
         if len(last_three) >= 3 and all(r == result for r in last_three):
             st.session_state.streak_type = result
         else:
             st.session_state.streak_type = None
 
-        # Prediction logic
         if len(st.session_state.pair_types) >= 5:
             recent_pairs = st.session_state.pair_types[-10:]
             odd_count = sum(1 for a, b in recent_pairs if a != b)
@@ -197,7 +187,6 @@ def update_prediction_and_betting(result):
                 st.session_state.current_dominance = "Even"
                 st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
 
-            # Betting logic
             if st.session_state.bet_amount == 0:
                 st.session_state.bet_amount = st.session_state.unit
             if len(st.session_state.pair_types) >= 6 and st.session_state.state_history and st.session_state.state_history[-1]['next_prediction'] != "Hold":
@@ -226,7 +215,7 @@ def update_prediction_and_betting(result):
         raise e
 
 def update_prediction():
-    """Update prediction for reset actions."""
+    """Update prediction for resets."""
     try:
         if len(st.session_state.pair_types) >= 5:
             recent_pairs = st.session_state.pair_types[-10:]
@@ -256,7 +245,7 @@ def update_prediction():
         raise e
 
 def reset_betting():
-    """Reset betting parameters."""
+    """Reset betting."""
     try:
         st.session_state.result_tracker = 0
         st.session_state.bet_amount = st.session_state.unit
@@ -268,7 +257,7 @@ def reset_betting():
         raise e
 
 def reset_all():
-    """Reset all session state."""
+    """Reset session state."""
     try:
         st.session_state.history = []
         st.session_state.pair_types = []
@@ -294,42 +283,31 @@ def main():
         st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
 
         # Initialize session state
-        if 'history' not in st.session_state:
-            st.session_state.history = []
-        if 'pair_types' not in st.session_state:
-            st.session_state.pair_types = []
-        if 'previous_result' not in st.session_state:
-            st.session_state.previous_result = None
-        if 'result_tracker' not in st.session_state:
-            st.session_state.result_tracker = 0
-        if 'profit_lock' not in st.session_state:
-            st.session_state.profit_lock = 0
-        if 'bet_amount' not in st.session_state:
-            st.session_state.bet_amount = 1
-        if 'unit' not in st.session_state:
-            st.session_state.unit = 1
-        if 'next_prediction' not in st.session_state:
-            st.session_state.next_prediction = "N/A"
-        if 'current_dominance' not in st.session_state:
-            st.session_state.current_dominance = "N/A"
-        if 'consecutive_wins' not in st.session_state:
-            st.session_state.consecutive_wins = 0
-        if 'consecutive_losses' not in st.session_state:
-            st.session_state.consecutive_losses = 0
-        if 'streak_type' not in st.session_state:
-            st.session_state.streak_type = None
-        if 'state_history' not in st.session_state:
-            st.session_state.state_history = []
-        if 'selected_patterns' not in st.session_state:
-            st.session_state.selected_patterns = []  # Default to no patterns
-        if 'screen_width' not in st.session_state:
-            st.session_state.screen_width = 1024
-        if 'button_feedback' not in st.session_state:
-            st.session_state.button_feedback = ""
+        for key, value in {
+            'history': [],
+            'pair_types': [],
+            'previous_result': None,
+            'result_tracker': 0,
+            'profit_lock': 0,
+            'bet_amount': 1,
+            'unit': 1,
+            'next_prediction': "N/A",
+            'current_dominance': "N/A",
+            'consecutive_wins': 0,
+            'consecutive_losses': 0,
+            'streak_type': None,
+            'state_history': [],
+            'selected_patterns': [],
+            'screen_width': 1024,
+            'button_feedback': ""
+        }.items():
+            if key not in st.session_state:
+                st.session_state[key] = value
+
         if 'feedback_placeholder' not in st.session_state:
             st.session_state.feedback_placeholder = st.empty()
 
-        # CSS for styling
+        # CSS
         st.markdown("""
             <style>
             .pattern-scroll {
@@ -342,7 +320,6 @@ def main():
                 width: 100%; padding: 10px; margin: 5px 0;
                 background: linear-gradient(to right, #4CAF50, #81C784);
                 color: white; border: none; border-radius: 5px; font-size: 1rem;
-                transition: background 0.3s;
             }
             .stButton > button:hover {
                 background: linear-gradient(to right, #81C784, #4CAF50);
@@ -386,9 +363,9 @@ def main():
         """, unsafe_allow_html=True)
 
         # Screen width
-        screen_width_input = st.text_input("Screen Width", value=str(st.session_state.screen_width), disabled=True)
+        st.text_input("Screen Width", value=str(st.session_state.screen_width), disabled=True, key="screen_width_input")
         try:
-            st.session_state.screen_width = int(screen_width_input) if screen_width_input.isdigit() else 1024
+            st.session_state.screen_width = int(st.session_state.screen_width) if str(st.session_state.screen_width).isdigit() else 1024
         except ValueError:
             st.session_state.screen_width = 1024
 
@@ -409,24 +386,22 @@ def main():
 
         # Input Game Results
         with st.expander("Input Game Results", expanded=True):
-            st.session_state.feedback_placeholder = st.empty()
-            with st.container():
-                cols = st.columns(5)
-                with cols[0]:
-                    if st.button("Player", key="player_button"):
-                        handle_button_action("record_result", result="P")
-                with cols[1]:
-                    if st.button("Banker", key="banker_button"):
-                        handle_button_action("record_result", result="B")
-                with cols[2]:
-                    if st.button("Tie", key="tie_button"):
-                        handle_button_action("record_result", result="T")
-                with cols[3]:
-                    if st.button("Undo", key="undo_button", disabled=len(st.session_state.state_history) == 0):
-                        handle_button_action("undo")
-                with cols[4]:
-                    if st.button("Reset Betting", key="reset_betting_button"):
-                        handle_button_action("reset_betting")
+            cols = st.columns(5)
+            with cols[0]:
+                if st.button("Player", key="player_button"):
+                    handle_button_action("record_result", result="P")
+            with cols[1]:
+                if st.button("Banker", key="banker_button"):
+                    handle_button_action("record_result", result="B")
+            with cols[2]:
+                if st.button("Tie", key="tie_button"):
+                    handle_button_action("record_result", result="T")
+            with cols[3]:
+                if st.button("Undo", key="undo_button", disabled=len(st.session_state.state_history) == 0):
+                    handle_button_action("undo")
+            with cols[4]:
+                if st.button("Reset Betting", key="reset_betting_button"):
+                    handle_button_action("reset_betting")
 
         # Session Control
         with st.expander("Session Control", expanded=False):
@@ -444,7 +419,7 @@ def main():
             st.text(history_text) if history_text else st.markdown("No deal history yet.")
             st.markdown('</div>', unsafe_allow_html=True)
 
-        # Shoe Patterns (disabled by default)
+        # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=False):
             pattern_options = ["Bead Bin", "Big Road", "Big Eye", "Cockroach"]
             selected_patterns = st.multiselect(
@@ -537,6 +512,11 @@ def main():
                     st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.markdown("No Cockroach data.")
+
+        # Debug state on error
+        if st.session_state.button_feedback.startswith("Error"):
+            with st.expander("Debug State", expanded=True):
+                st.write("Session State:", {k: v for k, v in st.session_state.items() if k not in ['feedback_placeholder']})
 
     except Exception as e:
         logging.error(f"Unexpected error in main: {str(e)}")
