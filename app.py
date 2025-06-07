@@ -3,7 +3,7 @@ import logging
 import time
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Cache grid-building functions
 @st.cache_data
@@ -32,7 +32,7 @@ def build_big_road(s):
                 grid[row][col] = mapped
                 row += 1
         last_outcome = mapped if mapped != 'T' else last_outcome
-    return grid, col + 1
+    return grid, min(col + 1, max_cols)
 
 @st.cache_data
 def build_big_eye_boy(big_road_grid, num_cols):
@@ -57,7 +57,7 @@ def build_big_eye_boy(big_road_grid, num_cols):
         else:
             col += 1
             row = 0
-    return grid, col + 1 if row > 0 else col
+    return grid, min(col + 1 if row > 0 else col, max_cols)
 
 @st.cache_data
 def build_cockroach_pig(big_road_grid, num_cols):
@@ -82,7 +82,7 @@ def build_cockroach_pig(big_road_grid, num_cols):
         else:
             col += 1
             row = 0
-    return grid, col + 1 if row > 0 else col
+    return grid, min(col + 1 if row > 0 else col, max_cols)
 
 def handle_button_action(action, result=None):
     """Handle button actions with logging."""
@@ -307,7 +307,7 @@ def main():
         if 'feedback_placeholder' not in st.session_state:
             st.session_state.feedback_placeholder = st.empty()
 
-        # CSS
+        # CSS and JavaScript
         st.markdown("""
             <style>
             .pattern-scroll {
@@ -353,8 +353,14 @@ def main():
             <script>
             function autoScrollPatterns() {
                 ['bead-bin-scroll', 'big-road-scroll', 'big-eye-scroll', 'cockroach-scroll', 'deal-history-scroll'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.scrollLeft = el.scrollWidth;
+                    try {
+                        const el = document.getElementById(id);
+                        if (el) {
+                            el.scrollLeft = el.scrollWidth;
+                        }
+                    } catch (e) {
+                        console.error(`Error scrolling element ${id}: ${e}`);
+                    }
                 });
             }
             window.onload = autoScrollPatterns;
@@ -411,13 +417,17 @@ def main():
         # Deal History
         with st.expander("Deal History", expanded=True):
             st.markdown("### Deal History")
-            st.markdown('<div id="deal-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-            history_text = ""
-            for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
-                pair_type = "Even" if pair[0] == pair[1] else "Odd"
-                history_text += f"{pair} ({pair_type})\n"
-            st.text(history_text) if history_text else st.markdown("No deal history yet.")
-            st.markdown('</div>', unsafe_allow_html=True)
+            try:
+                st.markdown('<div id="deal-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                history_text = ""
+                for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
+                    pair_type = "Even" if pair[0] == pair[1] else "Odd"
+                    history_text += f"{pair} ({pair_type})\n"
+                st.text(history_text) if history_text else st.markdown("No deal history yet.")
+                st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e:
+                logging.error(f"Error rendering Deal History: {str(e)}")
+                st.error(f"Error rendering Deal History: {str(e)}")
 
         # Shoe Patterns
         with st.expander("Shoe Patterns", expanded=False):
@@ -430,93 +440,111 @@ def main():
             max_display_cols = 6 if st.session_state.screen_width < 768 else 8
 
             if "Bead Bin" in selected_patterns and st.session_state.history:
-                st.markdown("### Bead Bin")
-                sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-84:]
-                grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
-                for i, result in enumerate(sequence):
-                    col = i // 6
-                    row = i % 6
-                    if col < max_display_cols:
-                        color = '#2196F3' if result == 'P' else '#F44336' if result == 'B' else '#4CAF50'
-                        grid[row][col] = f'<div class="pattern-circle" style="background-color: {color}; border-radius: 50%; border: 1px solid #fff;"></div>'
-                st.markdown('<div id="bead-bin-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                for row in grid:
-                    st.markdown(' '.join(row), unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                try:
+                    st.markdown("### Bead Bin")
+                    sequence = ['P' if r == 'Player' else 'B' if r == 'Banker' else 'T' for r in st.session_state.history][-84:]
+                    grid = [['' for _ in range(max_display_cols)] for _ in range(6)]
+                    for i, result in enumerate(sequence):
+                        col = i // 6
+                        row = i % 6
+                        if col < max_display_cols:
+                            color = '#2196F3' if result == 'P' else '#F44336' if result == 'B' else '#4CAF50'
+                            grid[row][col] = f'<div class="pattern-circle" style="background-color: {color}; border-radius: 50%; border: 1px solid #fff;"></div>'
+                    st.markdown('<div id="bead-bin-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                    for row in grid:
+                        st.markdown(' '.join(row), unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                except Exception as e:
+                    logging.error(f"Error rendering Bead Bin: {str(e)}")
+                    st.error(f"Error rendering Bead Bin: {str(e)}")
 
             if "Big Road" in selected_patterns and st.session_state.history:
-                st.markdown("### Big Road")
-                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                if num_cols > 0:
-                    display_cols = min(num_cols, max_display_cols)
-                    st.markdown('<div id="big-road-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                    for row in range(6):
-                        row_display = []
-                        for col in range(display_cols):
-                            outcome = big_road_grid[row][col]
-                            if outcome == 'P':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"></div>')
-                            elif outcome == 'B':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"></div>')
-                            elif outcome == 'T':
-                                row_display.append(f'<div class="pattern-circle" style="border: 2px solid #4CAF50; border-radius: 50%;"></div>')
-                            else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(''.join(row_display), unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown("No Big Road data.")
+                try:
+                    st.markdown("### Big Road")
+                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
+                    if num_cols > 0:
+                        display_cols = min(num_cols, max_display_cols)
+                        st.markdown('<div id="big-road-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                        for row in range(6):
+                            row_display = []
+                            for col in range(display_cols):
+                                outcome = big_road_grid[row][col]
+                                if outcome == 'P':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"></div>')
+                                elif outcome == 'B':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"></div>')
+                                elif outcome == 'T':
+                                    row_display.append(f'<div class="pattern-circle" style="border: 2px solid #4CAF50; border-radius: 50%;"></div>')
+                                else:
+                                    row_display.append(f'<div class="display-circle"></div>')
+                            st.markdown(''.join(row_display), unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown("No Big Road data.")
+                except Exception as e:
+                    logging.error(f"Error rendering Big Road: {str(e)}")
+                    st.error(f"Error rendering Big Road: {str(e)}")
 
             if "Big Eye" in selected_patterns and st.session_state.history:
-                st.markdown("### Big Eye Boy")
-                st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
-                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                big_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
-                if big_eye_cols > 0:
-                    display_cols = min(big_eye_cols, max_display_cols)
-                    st.markdown('<div id="big-eye-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                    for row in range(6):
-                        row_display = []
-                        for col in range(display_cols):
-                            outcome = big_eye_grid[row][col]
-                            if outcome == 'R':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #000;"></div>')
-                            elif outcome == 'B':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"></div>')
-                            else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(''.join(row_display), unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown("No Big Eye data.")
+                try:
+                    st.markdown("### Big Eye Boy")
+                    st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
+                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
+                    big_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
+                    if big_eye_cols > 0:
+                        display_cols = min(big_eye_cols, max_display_cols)
+                        st.markdown('<div id="big-eye-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                        for row in range(6):
+                            row_display = []
+                            for col in range(display_cols):
+                                outcome = big_eye_grid[row][col]
+                                if outcome == 'R':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #000;"></div>')
+                                elif outcome == 'B':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"></div>')
+                                else:
+                                    row_display.append(f'<div class="display-circle"></div>')
+                            st.markdown(''.join(row_display), unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown("No Big Eye data.")
+                except Exception as e:
+                    logging.error(f"Error rendering Big Eye: {str(e)}")
+                    st.error(f"Error rendering Big Eye: {str(e)}")
 
             if "Cockroach" in selected_patterns and st.session_state.history:
-                st.markdown("### Cockroach Pig")
-                st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
-                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
-                cockroach_grid, cockroach_cols = build_cockroach_pig(big_road_grid, num_cols)
-                if cockroach_cols > 0:
-                    display_cols = min(cockroach_cols, max_display_cols)
-                    st.markdown('<div id="cockroach-scroll" class="pattern-scroll">', unsafe_allow_html=True)
-                    for row in range(6):
-                        row_display = []
-                        for col in range(display_cols):
-                            outcome = cockroach_grid[row][col]
-                            if outcome == 'R':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #000;"></div>')
-                            elif outcome == 'B':
-                                row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"></div>')
-                            else:
-                                row_display.append(f'<div class="display-circle"></div>')
-                        st.markdown(''.join(row_display), unsafe_allow_html=True)
-                    st.markdown('</div>', unsafe_allow_html=True)
-                else:
-                    st.markdown("No Cockroach data.")
+                try:
+                    st.markdown("### Cockroach Pig")
+                    st.markdown("<p style='font-size: 12px; color: #666;'>Red (🔴): Repeat, Blue (🔵): Break</p>", unsafe_allow_html=True)
+                    big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
+                    cockroach_grid, cockroach_cols = build_cockroach_pig(big_road_grid, num_cols)
+                    if cockroach_cols > 0:
+                        display_cols = min(cockroach_cols, max_display_cols)
+                        st.markdown('<div id="cockroach-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                        for row in range(6):
+                            row_display = []
+                            for col in range(display_cols):
+                                outcome = cockroach_grid[row][col]
+                                if outcome == 'R':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #F44336; border-radius: 50%; border: 1px solid #000;"></div>')
+                                elif outcome == 'B':
+                                    row_display.append(f'<div class="pattern-circle" style="background-color: #2196F3; border-radius: 50%; border: 1px solid #000;"></div>')
+                                else:
+                                    row_display.append(f'<div class="display-circle"></div>')
+                            st.markdown(''.join(row_display), unsafe_allow_html=True)
+                        st.markdown('</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown("No Cockroach data.")
+                except Exception as e:
+                    logging.error(f"Error rendering Cockroach: {str(e)}")
+                    st.error(f"Error rendering Cockroach: {str(e)}")
 
         # Debug state on error
         if st.session_state.button_feedback.startswith("Error"):
             with st.expander("Debug State", expanded=True):
-                st.write("Session State:", {k: v for k, v in st.session_state.items() if k not in ['feedback_placeholder']})
+                state_copy = {k: v for k, v in st.session_state.items() if k != 'feedback_placeholder'}
+                logging.debug(f"Session state copy: {state_copy}")
+                st.json(state_copy)
 
     except Exception as e:
         logging.error(f"Unexpected error in main: {str(e)}")
