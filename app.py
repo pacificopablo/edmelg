@@ -131,8 +131,6 @@ def main():
             st.session_state.screen_width = 1024
         if 'last_click_time' not in st.session_state:
             st.session_state.last_click_time = 0
-        if 'update_trigger' not in st.session_state:
-            st.session_state.update_trigger = 0
 
         # Custom CSS for styling
         st.markdown("""
@@ -257,7 +255,7 @@ def main():
         # Debounce function to prevent rapid clicks
         def can_process_click():
             current_time = time.time()
-            if current_time - st.session_state.last_click_time < 0.5:  # 500ms debounce
+            if current_time - st.session_state.last_click_time < 0.3:  # 300ms debounce
                 return False
             st.session_state.last_click_time = current_time
             return True
@@ -283,29 +281,29 @@ def main():
             with cols[0]:
                 if st.button("Player", disabled=not can_process_click()):
                     record_result("P")
-                    st.session_state.update_trigger += 1  # Trigger UI update
+                    st.rerun()  # Required for UI updates
             with cols[1]:
                 if st.button("Banker", disabled=not can_process_click()):
                     record_result("B")
-                    st.session_state.update_trigger += 1
+                    st.rerun()
             with cols[2]:
                 if st.button("Tie", disabled=not can_process_click()):
                     record_result("T")
-                    st.session_state.update_trigger += 1
+                    st.rerun()
             with cols[3]:
-                if st.button("Undo", disabled=len(st.session_state.state_history) == 0 or not can_process_click()):
+                if st.button("Undo", disabled=len(st.session_state.state_history) == 0):
                     undo()
-                    st.session_state.update_trigger += 1
+                    st.rerun()
             with cols[4]:
                 if st.button("Reset Betting", disabled=not can_process_click()):
                     reset_betting()
-                    st.session_state.update_trigger += 1
+                    st.rerun()
 
         # Session control
         with st.expander("Session Control", expanded=False):
             if st.button("New Session", disabled=not can_process_click()):
                 reset_all()
-                st.session_state.update_trigger += 1
+                st.rerun()
 
         # Deal history
         with st.expander("Deal History", expanded=True):
@@ -355,7 +353,7 @@ def main():
 
             if "Big Road" in st.session_state.selected_patterns:
                 st.markdown("### Big Road")
-                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))  # Convert to tuple for caching
+                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
                 if num_cols > 0:
                     display_cols = min(num_cols, max_display_cols)
                     st.markdown('<div id="big-road-scroll" class="pattern-scroll">', unsafe_allow_html=True)
@@ -494,10 +492,9 @@ def record_result(result):
                         st.session_state.consecutive_losses = 0
                         if st.session_state.result_tracker > st.session_state.profit_lock:
                             st.session_state.profit_lock = st.session_state.result_tracker
-                            reset_betting()
                             st.info(f"New profit lock achieved: {st.session_state.profit_lock} units! Betting reset to 1 unit.")
-                            return
-                        if st.session_state.consecutive_wins >= 2:
+                            reset_betting()
+                        elif st.session_state.consecutive_wins >= 2:
                             st.session_state.bet_amount = max(1, st.session_state.bet_amount - 1)
                     else:
                         st.session_state.result_tracker -= effective_bet
@@ -572,7 +569,7 @@ def reset_all():
     st.session_state.streak_type = None
     st.session_state.state_history = []
     st.session_state.selected_patterns = ["Bead Bin"]
-    st.session_state.update_trigger = 0
+    st.session_state.last_click_time = 0
 
 if __name__ == "__main__":
     main()
