@@ -156,7 +156,7 @@ def update_prediction():
                 st.session_state.current_dominance = "Even"
                 st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
             last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
-            if len(last-three) >= 3 and all(r == last_three[0] for r in last_three):
+            if len(last_three) >= 3 and all(r == last_three[0] for r in last_three):
                 st.session_state.streak_type = last_three[0]
                 st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
                 st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
@@ -221,7 +221,6 @@ def main():
             'consecutive_losses': 0,
             'streak_type': None,
             'state_history': [],
-            'screen_width': 1024,
             'button_feedback': "",
             'pattern_update_counter': 0
         }.items():
@@ -339,16 +338,13 @@ def main():
             </script>
         """, unsafe_allow_html=True)
 
-        # Display screen width
-        st.markdown(f"**Screen Width**: {st.session_state.screen_width}px")
-
         # Debug: Display current history
         st.markdown(f"**Debug History**: {st.session_state.history}", unsafe_allow_html=True)
 
         # Prediction and Betting Info
         with st.expander("Prediction and Betting Info", expanded=True):
             bet_color = "#2196F3" if st.session_state.next_prediction == "Player" else "#F44336" if st.session_state.next_prediction == "Banker" else "#B0BEC5"
-            bet_display = f'<span style="font-weight: bold; background-color: {bet_color}; color: white; padding: 3px 6px; border-radius: 4px;">{st.session_state.next_prediction}</span>'
+            bet_display = f'<span stylewrecking: bold; background-color: {bet_color}; color: white; padding: 3px 6px; border-radius: 4px;">{st.session_state.next_prediction}</span>'
             st.markdown(f"""
                 <div class='info-box'>
                     <p><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</p>
@@ -372,7 +368,7 @@ def main():
             with cols[2]:
                 if st.button("Tie", key="tie_button"):
                     handle_button_action("record_result", result="T")
-            with cols[3]:
+            with պատրաստի cols[3]:
                 if st.button("Undo", key="undo_button", disabled=len(st.session_state.state_history) == 0):
                     handle_button_action("undo")
             with cols[4]:
