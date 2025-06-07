@@ -1,48 +1,38 @@
 import streamlit as st
 import logging
 
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up minimal logging
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def handle_button_action(action, result=None):
-    """Handle button actions with logging."""
+    """Handle button actions."""
     try:
-        logging.info(f"Handling action: {action}, result: {result}")
         feedback_placeholder = st.session_state.feedback_placeholder
         feedback_placeholder.empty()
         st.session_state.button_feedback = ""
 
         with feedback_placeholder.container():
             if action == "record_result" and result in ['P', 'B', 'T']:
-                st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
-                record_result(result)
+                with st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}..."):
+                    record_result(result)
                 st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
-                st.session_state.pattern_update_counter += 1  # Increment to force re-render
-                logging.info(f"Result {result} recorded, history: {st.session_state.history}, counter: {st.session_state.pattern_update_counter}")
 
             elif action == "undo":
                 if not st.session_state.state_history:
                     st.session_state.button_feedback = "No actions to undo."
-                    logging.warning("No actions to undo")
                 else:
                     last_state = st.session_state.state_history.pop()
                     for key, value in last_state.items():
                         st.session_state[key] = value
                     st.session_state.button_feedback = "Undid last action."
-                    st.session_state.pattern_update_counter += 1  # Increment to force re-render
-                    logging.info(f"Undo successful, history: {st.session_state.history}, counter: {st.session_state.pattern_update_counter}")
 
             elif action == "reset_betting":
                 reset_betting()
                 st.session_state.button_feedback = "Betting reset."
-                st.session_state.pattern_update_counter += 1  # Increment to force re-render
-                logging.info("Betting reset")
 
             elif action == "reset_all":
                 reset_all()
                 st.session_state.button_feedback = "Started new session."
-                st.session_state.pattern_update_counter += 1  # Increment to force re-render
-                logging.info("Session reset")
 
             if st.session_state.button_feedback:
                 st.markdown(f"<div class='feedback-box'>{st.session_state.button_feedback}</div>", unsafe_allow_html=True)
@@ -54,7 +44,6 @@ def handle_button_action(action, result=None):
 def record_result(result):
     """Record game result."""
     try:
-        logging.info(f"Recording result: {result}")
         state = {
             'history': st.session_state.history.copy(),
             'pair_types': st.session_state.pair_types.copy(),
@@ -169,7 +158,7 @@ def update_prediction():
         raise e
 
 def reset_betting():
-    """Update betting parameters."""
+    """Reset betting parameters."""
     try:
         st.session_state.result_tracker = 0
         st.session_state.bet_amount = st.session_state.unit
@@ -196,7 +185,6 @@ def reset_all():
         st.session_state.streak_type = None
         st.session_state.state_history = []
         st.session_state.button_feedback = ""
-        st.session_state.pattern_update_counter = 0
     except Exception as e:
         logging.error(f"Error in reset_all: {str(e)}")
         raise e
@@ -204,7 +192,7 @@ def reset_all():
 def main():
     try:
         st.set_page_config(page_title="Mang Baccarat Tracker", page_icon="🎲", layout="wide")
-        st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
+        st.title("Mang Baccarat Tracker")
 
         # Initialize session state
         for key, value in {
@@ -222,7 +210,6 @@ def main():
             'streak_type': None,
             'state_history': [],
             'button_feedback': "",
-            'pattern_update_counter': 0
         }.items():
             if key not in st.session_state:
                 st.session_state[key] = value
@@ -330,16 +317,13 @@ def main():
                             el.scrollLeft = el.scrollWidth;
                         }
                     } catch (e) {
-                        console.error('Error scrolling element shoe-history-scroll: ' + e + ')');
+                        console.error('Error scrolling element shoe-history-scroll: ' + e);
                     }
                 }
                 window.onload = autoScrollHistory;
                 window.onresize = autoScrollHistory;
             </script>
         """, unsafe_allow_html=True)
-
-        # Debug: Display current history
-        st.markdown(f"**Debug History**: {st.session_state.history}", unsafe_allow_html=True)
 
         # Prediction and Betting Info
         with st.expander("Prediction and Betting Info", expanded=True):
@@ -389,7 +373,6 @@ def main():
                 for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
                     pair_type = "Even" if pair[0] == pair[1] else "Odd"
                     history_text += f"({pair[0]}, {pair[1]}) ({pair_type})\n"
-                logging.debug(f"Deal History text: {history_text}")
                 if history_text:
                     st.markdown(f"```\n{history_text}\n```")
                 else:
@@ -416,21 +399,12 @@ def main():
                         style = color_map[result]["style"]
                         history_display.append(f'<div class="history-circle" style="{style}"></div>')
                     st.markdown(''.join(history_display), unsafe_allow_html=True)
-                    logging.debug(f"Rendered Shoe History with {len(sequence)} results")
                 else:
                     st.markdown("No shoe history yet.")
-                    logging.debug("No shoe history to render")
                 st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e:
                 logging.error(f"Error rendering Shoe History: {str(e)}")
                 st.error(f"Error rendering Shoe History: {str(e)}")
-
-        # Debug state on error
-        if st.session_state.button_feedback.startswith("Error"):
-            with st.expander("Debug State", expanded=True):
-                state_copy = {k: v for k, v in st.session_state.items() if k != 'feedback_placeholder'}
-                logging.debug(f"Session state copy: {state_copy}")
-                st.json(state_copy)
 
     except Exception as e:
         logging.error(f"Unexpected error in main: {str(e)}")
