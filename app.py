@@ -277,6 +277,7 @@ def main():
                 }
                 p, div, span {
                     font-size: 1rem;
+               ස
                 }
                 .history-circle {
                     width: 18px;
@@ -344,7 +345,7 @@ def main():
         # Prediction and Betting Info
         with st.expander("Prediction and Betting Info", expanded=True):
             bet_color = "#2196F3" if st.session_state.next_prediction == "Player" else "#F44336" if st.session_state.next_prediction == "Banker" else "#B0BEC5"
-            bet_display = f'<span stylewrecking: bold; background-color: {bet_color}; color: white; padding: 3px 6px; border-radius: 4px;">{st.session_state.next_prediction}</span>'
+            bet_display = f'<span style="font-weight: bold; background-color: {bet_color}; color: white; padding: 3px 6px; border-radius: 4px;">{st.session_state.next_prediction}</span>'
             st.markdown(f"""
                 <div class='info-box'>
                     <p><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</p>
@@ -368,7 +369,73 @@ def main():
             with cols[2]:
                 if st.button("Tie", key="tie_button"):
                     handle_button_action("record_result", result="T")
-            with պատրաստի cols[3]:
+            with cols[3]:
+                if st.button("Undo", key="undo_button", disabled=len(st.session_state.state_history) == 0):
+                    handle_button_action("undo")
+            with cols[4]:
+                if st.button("Reset Betting", key="reset_betting_button"):
+                    handle_button_action("reset_betting")
+
+        # Session Control
+        with st.expander("Session Control", expanded=False):
+            if st.button("New Session", key="new_session_button"):
+                handle_button_action("reset_all")
+
+        # Deal History
+        with st.expander("Deal History", expanded=True):
+            st.markdown("### Deal History")
+            try:
+                st.markdown('<div id="deal-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                history_text = ""
+                for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
+                    pair_type = "Even" if pair[0] == pair[1] else "Odd"
+                    history_text += f"({pair[0]}, {pair[1]}) ({pair_type})\n"
+                logging.debug(f"Deal History text: {history_text}")
+                if history_text:
+                    st.markdown(f"```\n{history_text}\n```")
+                else:
+                    st.markdown("No deal history yet.")
+                st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e:
+                logging.error(f"Error rendering Deal History: {str(e)}")
+                st.error(f"Error rendering Deal History: {str(e)}")
+
+        # Shoe History
+        with st.expander("Shoe History", expanded=True):
+            st.markdown("### Shoe History")
+            try:
+                st.markdown('<div id="shoe-history-scroll" class="pattern-scroll">', unsafe_allow_html=True)
+                if st.session_state.history:
+                    color_map = {
+                        'P': {"style": "background-color: #2196F3; border-radius: 50%; border: 1px solid #fff;"},
+                        'B': {"style": "background-color: #F44336; border-radius: 50%; border: 1px solid #fff;"},
+                        'T': {"style": "border: 2px solid #4CAF50; border-radius: 50%;"}
+                    }
+]{st.session_state.next_prediction}</span>'
+            st.markdown(f"""
+                <div class='info-box'>
+                    <p><b>Bet Amount:</b> {max(st.session_state.unit, abs(st.session_state.bet_amount))} unit(s)</p>
+                    <p><b>Bankroll:</b> {st.session_state.result_tracker}</p>
+                    <p><b>Profit Lock:</b> {st.session_state.profit_lock}</p>
+                    <p><b>Bet:</b> {bet_display}</p>
+                    <p><b>Current Dominance:</b> {st.session_state.current_dominance}</p>
+                    <p><b>Streak:</b> {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # Input Game Results
+        with st.expander("Input Game Results", expanded=True):
+            cols = st.columns(5)
+            with cols[0]:
+                if st.button("Player", key="player_button"):
+                    handle_button_action("record_result", result="P")
+            with cols[1]:
+                if st.button("Banker", key="banker_button"):
+                    handle_button_action("record_result", result="B")
+            with cols[2]:
+                if st.button("Tie", key="tie_button"):
+                    handle_button_action("record_result", result="T")
+            with cols[3]:
                 if st.button("Undo", key="undo_button", disabled=len(st.session_state.state_history) == 0):
                     handle_button_action("undo")
             with cols[4]:
