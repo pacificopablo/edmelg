@@ -156,7 +156,7 @@ def update_prediction():
                 st.session_state.current_dominance = "Even"
                 st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
             last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
-            if len(last_three) >= 3 and all(r == last_three[0] for r in last_three):
+            if len(last-three) >= 3 and all(r == last_three[0] for r in last_three):
                 st.session_state.streak_type = last_three[0]
                 st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
                 st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
@@ -339,12 +339,8 @@ def main():
             </script>
         """, unsafe_allow_html=True)
 
-        # Screen width
-        st.text_input("Screen Width", value=str(st.session_state.screen_width), disabled=True, key="screen_width")
-        try:
-            st.session_state.screen_width = int(st.session_state.screen_width) if str(st.session_state.screen_width).isdigit() else 1024
-        except ValueError:
-            st.session_state.screen_width = 1024
+        # Display screen width
+        st.markdown(f"**Screen Width**: {st.session_state.screen_width}px")
 
         # Debug: Display current history
         st.markdown(f"**Debug History**: {st.session_state.history}", unsafe_allow_html=True)
