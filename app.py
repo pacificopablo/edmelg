@@ -422,8 +422,12 @@ def main():
                 history_text = ""
                 for i, pair in enumerate(st.session_state.pair_types[-100:], 1):
                     pair_type = "Even" if pair[0] == pair[1] else "Odd"
-                    history_text += f"{pair} ({pair_type})\n"
-                st.text(history_text) if history_text else st.markdown("No deal history yet.")
+                    history_text += f"({pair[0]}, {pair[1]}) ({pair_type})\n"
+                logging.debug(f"Deal History text: {history_text}")
+                if history_text:
+                    st.markdown(f"```\n{history_text}\n```")
+                else:
+                    st.markdown("No deal history yet.")
                 st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e:
                 logging.error(f"Error rendering Deal History: {str(e)}")
