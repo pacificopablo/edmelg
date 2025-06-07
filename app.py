@@ -1,4 +1,4 @@
-import streamlit as st st nm ko
+import streamlit as st
 import logging
 import time
 
@@ -89,7 +89,7 @@ def handle_button_action(action, result=None):
     try:
         logging.info(f"Handling action: {action}, result: {result}")
         feedback_placeholder = st.session_state.feedback_placeholder
-        feedback_placeholder.empty()  # Clear previous feedback
+        feedback_placeholder.empty()
         st.session_state.button_feedback = ""
 
         with feedback_placeholder.container():
@@ -175,7 +175,7 @@ def update_prediction_and_betting(result):
             odd_count = sum(1 for a, b in recent_pairs if a != b)
             even_count = sum(1 for a, b in recent_pairs if a == b)
             if st.session_state.streak_type:
-                st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
+                st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else 'Banker'
                 st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
             elif abs(odd_count - even_count) < 2:
                 st.session_state.current_dominance = "N/A"
