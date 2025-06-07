@@ -239,17 +239,18 @@ def main():
                     width: 100%;
                     padding: 10px;
                     margin: 5px 0;
-                    background: #4CAF50;
-                    color: white;
+                    background: #4CAF50 !important;
+                    color: white !important;
                     border: none;
                     border-radius: 5px;
                     font-size: 1rem;
                 }
                 .stButton > button:hover {
-                    background: #4CAF50;
+                    background: #4CAF50 !important;
                 }
                 .stButton > button:disabled {
-                    background: #4CAF50;
+                    background: #4CAF50 !important;
+                    color: #cccccc !important;
                     cursor: not-allowed;
                 }
                 .stExpander {
