@@ -310,386 +310,114 @@ def main():
         # CSS and JavaScript
         st.markdown("""
             <style>
-            .pattern-scroll {
-                overflow-x: auto; white-space: nowrap; max-width: 100%; padding: 10px;
-                border: 1px solid #e1e1e1; background-color: #f9f9f9;
-            }
-            .pattern-scroll::-webkit-scrollbar { height: 8px; }
-            .pattern-scroll::-webkit-scrollbar-thumb { background-color: #888; border-radius: 4px; }
-            .stButton > button {
-                width: 100%; padding: 10px; margin: 5px 0;
-                background: linear-gradient(to rightBases for a fix include improving code organization, enhancing responsiveness, and optimizing display. I have refactored the "Shoe Patterns" section to address these issues by introducing a reusable render_pattern_grid function, improving responsiveness with dynamic column calculations, and enhancing error handling. Below is the complete, fixed, and improved version of your Streamlit app code, incorporating these enhancements while preserving all original functionality.
-
----
-
-```python
-import streamlit as st
-import logging
-import time
-
-# Set up logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Cache grid-building functions
-@st.cache_data
-def build_big_road(s):
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    last_outcome = None
-    for result in s:
-        mapped = 'P' if result == 'Player' else 'B' if result == 'Banker' else 'T'
-        if mapped == 'T':
-            if col < max_cols and row < max_rows and grid[row][col] == '':
-                grid[row][col] = 'T'
-            continue
-        if col >= max_cols:
-            break
-        if last_outcome is None or (mapped == last_outcome and row < max_rows - 1):
-            grid[row][col] = mapped
-            row += 1
-        else:
-            col += 1
-            row = 0
-            if col < max_cols:
-                grid[row][col] = mapped
-                row += 1
-        last_outcome = mapped if mapped != 'T' else last_outcome
-    return grid, min(col + 1, max_cols)
-
-@st.cache_data
-def build_big_eye_boy(big_road_grid, num_cols):
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    for c in range(3, num_cols):
-        if col >= max_cols:
-            break
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        third_last = [big_road_grid[r][c - 3] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        third_non_empty = next((i for i, x in enumerate(third_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and third_non_empty is not None:
-            grid[row][col] = 'R' if last_col[last_non_empty] == third_last[third_non_empty] else 'B'
-            row += 1
-            if row >= max_rows:
-                col += 1
-                row = 0
-        else:
-            col += 1
-            row = 0
-    return grid, min(col + 1 if row > 0 else col, max_cols)
-
-@st.cache_data
-def build_cockroach_pig(big_road_grid, num_cols):
-    max_rows = 6
-    max_cols = 30
-    grid = [['' for _ in range(max_cols)] for _ in range(max_rows)]
-    col = 0
-    row = 0
-    for c in range(4, num_cols):
-        if col >= max_cols:
-            break
-        last_col = [big_road_grid[r][c - 1] for r in range(max_rows)]
-        fourth_last = [big_road_grid[r][c - 4] for r in range(max_rows)]
-        last_non_empty = next((i for i, x in enumerate(last_col) if x in ['P', 'B']), None)
-        fourth_non_empty = next((i for i, x in enumerate(fourth_last) if x in ['P', 'B']), None)
-        if last_non_empty is not None and fourth_non_empty is not None:
-            grid[row][col] = 'R' if last_col[last_non_empty] == fourth_last[fourth_non_empty] else 'B'
-            row += 1
-            if row >= max_rows:
-                col += 1
-                row = 0
-        else:
-            col += 1
-            row = 0
-    return grid, min(col + 1 if row > 0 else col, max_cols)
-
-def handle_button_action(action, result=None):
-    """Handle button actions with logging."""
-    try:
-        logging.info(f"Handling action: {action}, result: {result}")
-        feedback_placeholder = st.session_state.feedback_placeholder
-        feedback_placeholder.empty()
-        st.session_state.button_feedback = ""
-
-        with feedback_placeholder.container():
-            if action == "record_result" and result in ['P', 'B', 'T']:
-                st.spinner(f"Processing {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'}...")
-                record_result(result)
-                st.session_state.button_feedback = f"Recorded {'Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie'} result."
-                logging.info(f"Result {result} recorded")
-
-            elif action == "undo":
-                if not st.session_state.state_history:
-                    st.session_state.button_feedback = "No actions to undo."
-                    logging.warning("No actions to undo")
-                else:
-                    last_state = st.session_state.state_history.pop()
-                    for key, value in last_state.items():
-                        st.session_state[key] = value
-                    st.session_state.button_feedback = "Undid last action."
-                    logging.info("Undo successful")
-
-            elif action == "reset_betting":
-                reset_betting()
-                st.session_state.button_feedback = "Betting reset."
-                logging.info("Betting reset")
-
-            elif action == "reset_all":
-                reset_all()
-                st.session_state.button_feedback = "Started new session."
-                logging.info("Session reset")
-
-            if st.session_state.button_feedback:
-                st.markdown(f"<div class='feedback-box'>{st.session_state.button_feedback}</div>", unsafe_allow_html=True)
-    except Exception as e:
-        logging.error(f"Error in handle_button_action: {str(e)}")
-        st.session_state.button_feedback = f"Error: {str(e)}"
-        feedback_placeholder.markdown(f"<div class='feedback-box'>Error: {str(e)}</div>", unsafe_allow_html=True)
-
-def record_result(result):
-    """Record game result."""
-    try:
-        logging.info(f"Recording result: {result}")
-        state = {
-            'history': st.session_state.history.copy(),
-            'pair_types': st.session_state.pair_types.copy(),
-            'previous_result': st.session_state.previous_result,
-            'result_tracker': st.session_state.result_tracker,
-            'profit_lock': st.session_state.profit_lock,
-            'bet_amount': st.session_state.bet_amount,
-            'current_dominance': st.session_state.current_dominance,
-            'next_prediction': st.session_state.next_prediction,
-            'consecutive_wins': st.session_state.consecutive_wins,
-            'consecutive_losses': st.session_state.consecutive_losses,
-            'streak_type': st.session_state.streak_type
-        }
-        st.session_state.state_history.append(state)
-
-        st.session_state.history.append('Player' if result == 'P' else 'Banker' if result == 'B' else 'Tie')
-
-        if result == 'T':
-            st.session_state.next_prediction = "N/A" if st.session_state.previous_result is None else st.session_state.next_prediction
-            st.session_state.previous_result = st.session_state.previous_result
-        else:
-            if st.session_state.previous_result is not None:
-                pair = (st.session_state.previous_result, result)
-                st.session_state.pair_types.append(pair)
-                update_prediction_and_betting(result)
-            st.session_state.previous_result = result
-    except Exception as e:
-        logging.error(f"Error in record_result: {str(e)}")
-        raise e
-
-def update_prediction_and_betting(result):
-    """Update prediction and betting."""
-    try:
-        last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
-        if len(last_three) >= 3 and all(r == result for r in last_three):
-            st.session_state.streak_type = result
-        else:
-            st.session_state.streak_type = None
-
-        if len(st.session_state.pair_types) >= 5:
-            recent_pairs = st.session_state.pair_types[-10:]
-            odd_count = sum(1 for a, b in recent_pairs if a != b)
-            even_count = sum(1 for a, b in recent_pairs if a == b)
-            if st.session_state.streak_type:
-                st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else 'Banker'
-                st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
-            elif abs(odd_count - even_count) < 2:
-                st.session_state.current_dominance = "N/A"
-                st.session_state.next_prediction = "Hold"
-            elif odd_count > even_count:
-                st.session_state.current_dominance = "Odd"
-                st.session_state.next_prediction = "Player" if result == 'B' else "Banker"
-            else:
-                st.session_state.current_dominance = "Even"
-                st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
-
-            if st.session_state.bet_amount == 0:
-                st.session_state.bet_amount = st.session_state.unit
-            if len(st.session_state.pair_types) >= 6 and st.session_state.state_history and st.session_state.state_history[-1]['next_prediction'] != "Hold":
-                previous_prediction = st.session_state.state_history[-1]['next_prediction']
-                effective_bet = max(st.session_state.unit, abs(st.session_state.bet_amount))
-                if (previous_prediction == "Player" and result == 'P') or (previous_prediction == "Banker" and result == 'B'):
-                    st.session_state.result_tracker += effective_bet
-                    st.session_state.consecutive_wins += 1
-                    st.session_state.consecutive_losses = 0
-                    if st.session_state.result_tracker > st.session_state.profit_lock:
-                        st.session_state.profit_lock = st.session_state.result_tracker
-                        st.session_state.button_feedback = f"New profit lock: {st.session_state.profit_lock} units! Betting reset."
-                        reset_betting()
-                    elif st.session_state.consecutive_wins >= 2:
-                        st.session_state.bet_amount = max(1, st.session_state.bet_amount - 1)
-                else:
-                    st.session_state.result_tracker -= effective_bet
-                    st.session_state.consecutive_losses += 1
-                    st.session_state.consecutive_wins = 0
-                    if st.session_state.consecutive_losses >= 3:
-                        st.session_state.bet_amount = min(5, st.session_state.bet_amount * 2)
-                    else:
-                        st.session_state.bet_amount += 1
-    except Exception as e:
-        logging.error(f"Error in update_prediction_and_betting: {str(e)}")
-        raise e
-
-def update_prediction():
-    """Update prediction for resets."""
-    try:
-        if len(st.session_state.pair_types) >= 5:
-            recent_pairs = st.session_state.pair_types[-10:]
-            odd_count = sum(1 for a, b in recent_pairs if a != b)
-            even_count = sum(1 for a, b in recent_pairs if a == b)
-            result = st.session_state.previous_result
-            if abs(odd_count - even_count) < 2:
-                st.session_state.current_dominance = "N/A"
-                st.session_state.next_prediction = "Hold"
-            elif odd_count > even_count:
-                st.session_state.current_dominance = "Odd"
-                st.session_state.next_prediction = "Player" if result == 'B' else "Banker"
-            else:
-                st.session_state.current_dominance = "Even"
-                st.session_state.next_prediction = "Player" if result == 'P' else "Banker"
-            last_three = [st.session_state.pair_types[-i][1] for i in range(1, min(4, len(st.session_state.pair_types)))]
-            if len(last_three) >= 3 and all(r == last_three[0] for r in last_three):
-                st.session_state.streak_type = last_three[0]
-                st.session_state.next_prediction = "Player" if st.session_state.streak_type == 'P' else "Banker"
-                st.session_state.current_dominance = f"Streak ({st.session_state.streak_type})"
-        else:
-            st.session_state.next_prediction = "N/A"
-            st.session_state.current_dominance = "N/A"
-            st.session_state.streak_type = None
-    except Exception as e:
-        logging.error(f"Error in update_prediction: {str(e)}")
-        raise e
-
-def reset_betting():
-    """Reset betting."""
-    try:
-        st.session_state.result_tracker = 0
-        st.session_state.bet_amount = st.session_state.unit
-        st.session_state.consecutive_wins = 0
-        st.session_state.consecutive_losses = 0
-        update_prediction()
-    except Exception as e:
-        logging.error(f"Error in reset_betting: {str(e)}")
-        raise e
-
-def reset_all():
-    """Reset session state."""
-    try:
-        st.session_state.history = []
-        st.session_state.pair_types = []
-        st.session_state.previous_result = None
-        st.session_state.result_tracker = 0
-        st.session_state.profit_lock = 0
-        st.session_state.bet_amount = st.session_state.unit
-        st.session_state.next_prediction = "N/A"
-        st.session_state.current_dominance = "N/A"
-        st.session_state.consecutive_wins = 0
-        st.session_state.consecutive_losses = 0
-        st.session_state.streak_type = None
-        st.session_state.state_history = []
-        st.session_state.selected_patterns = []
-        st.session_state.button_feedback = ""
-    except Exception as e:
-        logging.error(f"Error in reset_all: {str(e)}")
-        raise e
-
-def main():
-    try:
-        st.set_page_config(page_title="Mang Baccarat Tracker", page_icon="🎲", layout="wide")
-        st.title("Mang Baccarat Tracker with Enhanced Dominant Pairs")
-
-        # Initialize session state
-        for key, value in {
-            'history': [],
-            'pair_types': [],
-            'previous_result': None,
-            'result_tracker': 0,
-            'profit_lock': 0,
-            'bet_amount': 1,
-            'unit': 1,
-            'next_prediction': "N/A",
-            'current_dominance': "N/A",
-            'consecutive_wins': 0,
-            'consecutive_losses': 0,
-            'streak_type': None,
-            'state_history': [],
-            'selected_patterns': [],
-            'screen_width': 1024,
-            'button_feedback': ""
-        }.items():
-            if key not in st.session_state:
-                st.session_state[key] = value
-
-        if 'feedback_placeholder' not in st.session_state:
-            st.session_state.feedback_placeholder = st.empty()
-
-        # CSS and JavaScript
-        st.markdown("""
-            <style>
-            .pattern-scroll {
-                overflow-x: auto; white-space: nowrap; max-width: 100%; padding: 10px;
-                border: 1px solid #e1e1e1; background-color: #f9f9f9;
-            }
-            .pattern-scroll::-webkit-scrollbar { height: 8px; }
-            .pattern-scroll::-webkit-scrollbar-thumb { background-color: #888; border-radius: 4px; }
-            .stButton > button {
-                width: 100%; padding: 10px; margin: 5px 0;
-                background: linear-gradient(to right, #4CAF50, #81C784);
-                color: white; border: none; border-radius: 5px; font-size: 1rem;
-            }
-            .stButton > button:hover {
-                background: linear-gradient(to right, #81C784, #4CAF50);
-            }
-            .stButton > button:disabled {
-                background: #cccccc; cursor: not-allowed;
-            }
-            .stSelectbox { width: 100% !important; }
-            .stExpander { margin-bottom: 10px; }
-            h1 { font-size: 2.5rem; text-align: center; }
-            h3 { font-size: 1.5rem; }
-            p, div, span { font-size: 1rem; }
-            .pattern-circle, .display-circle { width: 18px; height: 18px; display: inline-block; margin: 2px; }
-            .info-box {
-                background-color: #2C2F33; color: white; padding: 10px;
-                border-radius: 5px; margin-bottom: 10px;
-            }
-            .feedback-box {
-                color: #2E7D32; font-size: 0.9rem; margin: 5px 0; padding: 8px;
-                border: 1px solid #4CAF50; border-radius: 4px; background-color: #E8F5E9;
-            }
-            @media (max-width: 768px) {
-                h1 { font-size: 1.8rem; }
-                h3 { font-size: 1.2rem; }
-                p, div, span { font-size: 0.9rem; }
-                .pattern-circle, .display-circle { width: 14px !important; height: 14px !important; }
-                .stButton > button { font-size: 0.9rem; padding: 8px; }
-                .stSelectbox div { font-size: 0.9rem; }
-            }
+                .pattern-scroll {
+                    overflow-x: auto;
+                    white-space: nowrap;
+                    max-width: 100%;
+                    padding: 10px;
+                    border: 1px solid #e1e1e1;
+                    background-color: #f9f9f9;
+                }
+                .pattern-scroll::-webkit-scrollbar {
+                    height: 8px;
+                }
+                .pattern-scroll::-webkit-scrollbar-thumb {
+                    background-color: #888;
+                    border-radius: 4px;
+                }
+                .stButton > button {
+                    width: 100%;
+                    padding: 10px;
+                    margin: 5px 0;
+                    background: linear-gradient(to right, #4CAF50, #81C784);
+                    color: white;
+                    border: none;
+                    border-radius: 5px;
+                    font-size: 1rem;
+                }
+                .stButton > button:hover {
+                    background: linear-gradient(to right, #81C784, #4CAF50);
+                }
+                .stButton > button:disabled {
+                    background: #cccccc;
+                    cursor: not-allowed;
+                }
+                .stSelectbox {
+                    width: 100% !important;
+                }
+                .stExpander {
+                    margin-bottom: 10px;
+                }
+                h1 {
+                    font-size: 2.5rem;
+                    text-align: center;
+                }
+                h3 {
+                    font-size: 1.5rem;
+                }
+                p, div, span {
+                    font-size: 1rem;
+                }
+                .pattern-circle, .display-circle {
+                    width: 18px;
+                    height: 18px;
+                    display: inline-block;
+                    margin: 2px;
+                }
+                .info-box {
+                    background-color: #2C2F33;
+                    color: white;
+                    padding: 10px;
+                    border-radius: 5px;
+                    margin-bottom: 10px;
+                }
+                .feedback-box {
+                    color: #2E7D32;
+                    font-size: 0.9rem;
+                    margin: 5px 0;
+                    padding: 8px;
+                    border: 1px solid #4CAF50;
+                    border-radius: 4px;
+                    background-color: #E8F5E9;
+                }
+                @media (max-width: 768px) {
+                    h1 {
+                        font-size: 1.8rem;
+                    }
+                    h3 {
+                        font-size: 1.2rem;
+                    }
+                    p, div, span {
+                        font-size: 0.9rem;
+                    }
+                    .pattern-circle, .display-circle {
+                        width: 14px !important;
+                        height: 14px !important;
+                    }
+                    .stButton > button {
+                        font-size: 0.9rem;
+                        padding: 8px;
+                    }
+                    .stSelectbox div {
+                        font-size: 0.9rem;
+                    }
+                }
             </style>
             <script>
-            function autoScrollPatterns() {
-                ['bead-bin-scroll', 'big-road-scroll', 'big-eye-boy-scroll', 'cockroach-pig-scroll', 'deal-history-scroll'].forEach(id => {
-                    try {
-                        const el = document.getElementById(id);
-                        if (el) {
-                            el.scrollLeft = el.scrollWidth;
+                function autoScrollPatterns() {
+                    ['bead-bin-scroll', 'big-road-scroll', 'big-eye-boy-scroll', 'cockroach-pig-scroll', 'deal-history-scroll'].forEach(id => {
+                        try {
+                            const el = document.getElementById(id);
+                            if (el) {
+                                el.scrollLeft = el.scrollWidth;
+                            }
+                        } catch (e) {
+                            console.error(`Error scrolling element ${id}: ${e}`);
                         }
-                    } catch (e) {
-                        console.error(`Error scrolling element ${id}: ${e}`);
-                    }
-                });
-            }
-            window.onload = autoScrollPatterns;
-            window.onresize = autoScrollPatterns;
+                    });
+                }
+                window.onload = autoScrollPatterns;
+                window.onresize = autoScrollPatterns;
             </script>
         """, unsafe_allow_html=True)
 
