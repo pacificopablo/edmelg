@@ -1,9 +1,12 @@
 import streamlit as st
 import logging
+import time
 
 # Set up logging
 logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Cache grid-building functions to reduce computation
+@st.cache_data
 def build_big_road(s):
     max_rows = 6
     max_cols = 50
@@ -32,6 +35,7 @@ def build_big_road(s):
         last_outcome = mapped if mapped != 'T' else last_outcome
     return grid, col + 1
 
+@st.cache_data
 def build_big_eye_boy(big_road_grid, num_cols):
     max_rows = 6
     max_cols = 50
@@ -60,6 +64,7 @@ def build_big_eye_boy(big_road_grid, num_cols):
             row = 0
     return grid, col + 1 if row > 0 else col
 
+@st.cache_data
 def build_cockroach_pig(big_road_grid, num_cols):
     max_rows = 6
     max_cols = 50
@@ -124,6 +129,10 @@ def main():
             st.session_state.selected_patterns = ["Bead Bin"]
         if 'screen_width' not in st.session_state:
             st.session_state.screen_width = 1024
+        if 'last_click_time' not in st.session_state:
+            st.session_state.last_click_time = 0
+        if 'update_trigger' not in st.session_state:
+            st.session_state.update_trigger = 0
 
         # Custom CSS for styling
         st.markdown("""
@@ -154,6 +163,10 @@ def main():
             }
             .stButton > button:hover {
                 background-color: #99AAB5;
+            }
+            .stButton > button:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
             }
             .stSelectbox {
                 width: 100% !important;
@@ -241,6 +254,14 @@ def main():
         except ValueError:
             st.session_state.screen_width = 1024
 
+        # Debounce function to prevent rapid clicks
+        def can_process_click():
+            current_time = time.time()
+            if current_time - st.session_state.last_click_time < 0.5:  # 500ms debounce
+                return False
+            st.session_state.last_click_time = current_time
+            return True
+
         # Display prediction and betting info
         with st.expander("Prediction and Betting Info", expanded=True):
             bet_color = "#3182ce" if st.session_state.next_prediction == "Player" else "#e53e3e" if st.session_state.next_prediction == "Banker" else "#ffffff"
@@ -260,31 +281,31 @@ def main():
         with st.expander("Input Game Results", expanded=True):
             cols = st.columns(5)
             with cols[0]:
-                if st.button("Player"):
+                if st.button("Player", disabled=not can_process_click()):
                     record_result("P")
-                    st.rerun()
+                    st.session_state.update_trigger += 1  # Trigger UI update
             with cols[1]:
-                if st.button("Banker"):
+                if st.button("Banker", disabled=not can_process_click()):
                     record_result("B")
-                    st.rerun()
+                    st.session_state.update_trigger += 1
             with cols[2]:
-                if st.button("Tie"):
+                if st.button("Tie", disabled=not can_process_click()):
                     record_result("T")
-                    st.rerun()
+                    st.session_state.update_trigger += 1
             with cols[3]:
-                if st.button("Undo", disabled=len(st.session_state.state_history) == 0):
+                if st.button("Undo", disabled=len(st.session_state.state_history) == 0 or not can_process_click()):
                     undo()
-                    st.rerun()
+                    st.session_state.update_trigger += 1
             with cols[4]:
-                if st.button("Reset Betting"):
+                if st.button("Reset Betting", disabled=not can_process_click()):
                     reset_betting()
-                    st.rerun()
+                    st.session_state.update_trigger += 1
 
         # Session control
         with st.expander("Session Control", expanded=False):
-            if st.button("New Session"):
+            if st.button("New Session", disabled=not can_process_click()):
                 reset_all()
-                st.rerun()
+                st.session_state.update_trigger += 1
 
         # Deal history
         with st.expander("Deal History", expanded=True):
@@ -334,7 +355,7 @@ def main():
 
             if "Big Road" in st.session_state.selected_patterns:
                 st.markdown("### Big Road")
-                big_road_grid, num_cols = build_big_road(st.session_state.history)
+                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))  # Convert to tuple for caching
                 if num_cols > 0:
                     display_cols = min(num_cols, max_display_cols)
                     st.markdown('<div id="big-road-scroll" class="pattern-scroll">', unsafe_allow_html=True)
@@ -358,7 +379,7 @@ def main():
             if "Big Eye" in st.session_state.selected_patterns:
                 st.markdown("### Big Eye Boy")
                 st.markdown("<p style='font-size: 12px; color: #666666;'>Red (🔴): Repeat Pattern, Blue (🔵): Break Pattern</p>", unsafe_allow_html=True)
-                big_road_grid, num_cols = build_big_road(st.session_state.history)
+                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
                 big_eye_grid, big_eye_cols = build_big_eye_boy(big_road_grid, num_cols)
                 if big_eye_cols > 0:
                     display_cols = min(big_eye_cols, max_display_cols)
@@ -381,7 +402,7 @@ def main():
             if "Cockroach" in st.session_state.selected_patterns:
                 st.markdown("### Cockroach Pig")
                 st.markdown("<p style='font-size: 12px; color: #666666;'>Red (🔴): Repeat Pattern, Blue (🔵): Break Pattern</p>", unsafe_allow_html=True)
-                big_road_grid, num_cols = build_big_road(st.session_state.history)
+                big_road_grid, num_cols = build_big_road(tuple(st.session_state.history))
                 cockroach_grid, cockroach_cols = build_cockroach_pig(big_road_grid, num_cols)
                 if cockroach_cols > 0:
                     display_cols = min(cockroach_cols, max_display_cols)
@@ -551,6 +572,7 @@ def reset_all():
     st.session_state.streak_type = None
     st.session_state.state_history = []
     st.session_state.selected_patterns = ["Bead Bin"]
+    st.session_state.update_trigger = 0
 
 if __name__ == "__main__":
     main()
