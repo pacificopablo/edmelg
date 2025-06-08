@@ -33,11 +33,6 @@ def set_base_amount():
     except ValueError:
         st.error("Please enter a valid number.")
 
-def new_session():
-    """Start a new session by resetting all state."""
-    reset_all()
-    st.success("New session started.")
-
 def reset_betting():
     """Reset betting parameters based on current state."""
     if st.session_state.result_tracker <= -10 * st.session_state.base_amount:
@@ -297,15 +292,6 @@ def update_display():
         history_text += f"{pair} ({pair_type})\n"
     st.session_state.history_display = history_text
 
-def simulate_games():
-    """Simulate 100 games with random outcomes."""
-    outcomes = ['P', 'B', 'T']
-    weights = [0.446, 0.458, 0.096]
-    for _ in range(100):
-        result = random.choices(outcomes, weights)[0]
-        record_result(result)
-    st.success("Simulated 100 games. Check stats for results.")
-
 def main():
     """Main function to render the Streamlit app with light UI."""
     st.set_page_config(page_title="Baccarat Predictor", layout="centered")
@@ -380,15 +366,15 @@ def main():
     st.text_area("", value=st.session_state.get("history_display", ""), height=200, disabled=True)
 
     st.markdown("---")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns([1, 1, 2, 2])
     with col1:
         st.button("Reset Bet", on_click=reset_betting)
     with col2:
         st.button("Reset Session", on_click=reset_all)
     with col3:
-        st.button("New Session", on_click=new_session)
+        pass
     with col4:
-        st.button("Simulate", on_click=simulate_games)
+        pass
 
 if __name__ == "__main__":
     main()
