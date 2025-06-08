@@ -1,0 +1,913 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mang Baccarat Predictor</title>
+    <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js@2.27.0/dist/plotly.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.22.10/babel.min.js"></script>
+    <style>
+        .pattern-scroll {
+            overflow-x: auto;
+            white-space: nowrap;
+            max-width: 100%;
+            padding: 10px;
+            border: 1px solid #e1e1e1;
+            background-color: #f9f9f9;
+        }
+        .pattern-scroll::-webkit-scrollbar {
+            height: 8px;
+        }
+        .pattern-scroll::-webkit-scrollbar-thumb {
+            background-color: #888;
+            border-radius: 4px;
+        }
+        .pattern-circle {
+            width: 22px;
+            height: 22px;
+            display: inline-block;
+            margin: 2px;
+        }
+        .display-circle {
+            width: 22px;
+            height: 22px;
+            display: inline-block;
+            margin: 2px;
+        }
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+            h3 {
+                font-size: 1.2rem;
+            }
+            p, div, span {
+                font-size: 0.9rem;
+            }
+            .pattern-circle, .display-circle {
+                width: 16px;
+                height: 16px;
+            }
+            button {
+                font-size: 0.9rem;
+                padding: 6px;
+            }
+            input, select {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        // Utility functions
+        function normalize(s) {
+            s = s.trim().toLowerCase();
+            if (s === 'banker' || s === 'b') return 'Banker';
+            if (s === 'player' || s === 'p') return 'Player';
+            if (s === 'tie' || s === 't') return 'Tie';
+            return null;
+        }
+
+        function detectStreak(s) {
+            if (!s.length) return [null, 0];
+            const last = s[s.length - 1];
+            let count = 1;
+            for (let i = s.length - 2; i >= 0; i--) {
+                if (s[i] === last) count++;
+                else break;
+            }
+            return [last, count];
+        }
+
+        function buildBigRoad(s) {
+            const maxRows = 6;
+            const maxCols = 50;
+            const grid = Array(maxRows).fill().map(() => Array(maxCols).fill(''));
+            let col = 0;
+            let row = 0;
+            let lastOutcome = null;
+
+            for (let result of s) {
+                const mapped = result === 'Player' ? 'P' : result === 'Banker' ? 'B' : 'T';
+                if (mapped === 'T') {
+                    if (col < maxCols && row < maxRows && grid[row][col] === '') {
+                        grid[row][col] = 'T';
+                    }
+                    continue;
+                }
+                if (col >= maxCols) break;
+                if (lastOutcome === null || (mapped === lastOutcome && row < maxRows - 1)) {
+                    grid[row][col] = mapped;
+                    row++;
+                } else {
+                    col++;
+                    row = 0;
+                    if (col < maxCols) {
+                        grid[row][col] = mapped;
+                        row++;
+                    }
+                }
+                lastOutcome = mapped !== 'T' ? mapped : lastOutcome;
+            }
+            return [grid, col + 1];
+        }
+
+        function buildBigEyeBoy(bigRoadGrid, numCols) {
+            const maxRows = 6;
+            const maxCols = 50;
+            const grid = Array(maxRows).fill().map(() => Array(maxCols).fill(''));
+            let col = 0;
+            let row = 0;
+
+            for (let c = 3; c < numCols; c++) {
+                if (col >= maxCols) break;
+                const lastCol = bigRoadGrid.map(row => row[c - 1]);
+                const thirdLast = bigRoadGrid.map(row => row[c - 3]);
+                const lastNonEmpty = lastCol.findIndex(x => ['P', 'B'].includes(x));
+                const thirdNonEmpty = thirdLast.findIndex(x => ['P', 'B'].includes(x));
+                if (lastNonEmpty !== -1 && thirdNonEmpty !== -1) {
+                    grid[row][col] = lastCol[lastNonEmpty] === thirdLast[thirdNonEmpty] ? 'R' : 'B';
+                    row++;
+                    if (row >= maxRows) {
+                        col++;
+                        row = 0;
+                    }
+                } else {
+                    col++;
+                    row = 0;
+                }
+            }
+            return [grid, row > 0 ? col + 1 : col];
+        }
+
+        function buildCockroachPig(bigRoadGrid, numCols) {
+            const maxRows = 6;
+            const maxCols = 50;
+            const grid = Array(maxRows).fill().map(() => Array(maxCols).fill(''));
+            let col = 0;
+            let row = 0;
+
+            for (let c = 4; c < numCols; c++) {
+                if (col >= maxCols) break;
+                const lastCol = bigRoadGrid.map(row => row[c - 1]);
+                const fourthLast = bigRoadGrid.map(row => row[c - 4]);
+                const lastNonEmpty = lastCol.findIndex(x => ['P', 'B'].includes(x));
+                const fourthNonEmpty = fourthLast.findIndex(x => ['P', 'B'].includes(x));
+                if (lastNonEmpty !== -1 && fourthNonEmpty !== -1) {
+                    grid[row][col] = lastCol[lastNonEmpty] === fourthLast[fourthNonEmpty] ? 'R' : 'B';
+                    row++;
+                    if (row >= maxRows) {
+                        col++;
+                        row = 0;
+                    }
+                } else {
+                    col++;
+                    row = 0;
+                }
+            }
+            return [grid, row > 0 ? col + 1 : col];
+        }
+
+        function analyzePairPatterns(recentPairs, result, mode = 'Conservative') {
+            if (!recentPairs.length) {
+                return ['N/A', 'Pass', 0.0, 'No results yet. Waiting for shoe to develop.', ['No patterns'], 'Cautious'];
+            }
+
+            const oddCount = recentPairs.filter(([a, b]) => a !== b).length;
+            const evenCount = recentPairs.filter(([a, b]) => a === b).length;
+            const totalPairs = recentPairs.length;
+            const dominanceDiff = Math.abs(oddCount - evenCount);
+            let confidence = Math.min(dominanceDiff / totalPairs * 100, 95);
+
+            const pairSequence = recentPairs.map(([a, b]) => a !== b ? 'Odd' : 'Even');
+            let cycleDetected = false;
+            let cycleLength = 0;
+            for (let length = 2; length <= Math.min(5, Math.floor(pairSequence.length / 2)); length++) {
+                if (pairSequence.length >= 2 * length) {
+                    const recent = pairSequence.slice(-2 * length, -length);
+                    const previous = pairSequence.slice(-length);
+                    if (JSON.stringify(recent) === JSON.stringify(previous)) {
+                        cycleDetected = true;
+                        cycleLength = length;
+                        confidence += 20;
+                        break;
+                    }
+                }
+            }
+
+            const lastThreePairs = pairSequence.slice(-3);
+            const pairStreak = lastThreePairs.length >= 3 && lastThreePairs.every(p => p === lastThreePairs[0]);
+
+            const reasonParts = [];
+            const patternInsights = [];
+            let emotionalTone = 'Neutral';
+
+            let dominance, prediction, betMultiplier;
+            if (pairStreak) {
+                dominance = `Pair Streak (${lastThreePairs[0]})`;
+                prediction = lastThreePairs[0] === 'Odd' ? (result === 'B' ? 'Player' : 'Banker') : (result === 'P' ? 'Player' : 'Banker');
+                betMultiplier = Math.ceil(confidence < 70 ? 1.5 : 2.0);
+                confidence = Math.min(confidence + 20, 95);
+                reasonParts.push(`Detected pair streak of ${lastThreePairs[0]} in last 3 pairs.`);
+                patternInsights.push(`Pair Streak: ${lastThreePairs[0]}`);
+                emotionalTone = 'Confident';
+            } else if (cycleDetected) {
+                dominance = `Cycle (length ${cycleLength})`;
+                const lastPairType = pairSequence[pairSequence.length - 1];
+                prediction = lastPairType === 'Odd' ? (result === 'B' ? 'Player' : 'Banker') : (result === 'P' ? 'Player' : 'Banker');
+                betMultiplier = Math.ceil(1.2 + 0.3 * cycleLength);
+                confidence = Math.min(confidence + 15 * cycleLength, 95);
+                reasonParts.push(`Detected repeating cycle of length ${cycleLength}.`);
+                patternInsights.push(`Cycle: Length ${cycleLength}`);
+                emotionalTone = 'Curious';
+            } else if (dominanceDiff >= 4 && confidence > 50) {
+                if (oddCount > evenCount) {
+                    dominance = 'Odd';
+                    prediction = result === 'B' ? 'Player' : 'Banker';
+                    reasonParts.push('Odd pair dominance detected.');
+                    patternInsights.push('Odd Pair Dominance');
+                } else {
+                    dominance = 'Even';
+                    prediction = result === 'P' ? 'Player' : 'Banker';
+                    reasonParts.push('Even pair dominance detected.');
+                    patternInsights.push('Even Pair Dominance');
+                }
+                betMultiplier = Math.ceil(1.0 + confidence / 100);
+                confidence = Math.min(confidence + 10, 95);
+                emotionalTone = 'Hopeful';
+            } else {
+                dominance = 'N/A';
+                prediction = 'Pass';
+                betMultiplier = 0.0;
+                confidence = 0.0;
+                reasonParts.push('No strong pattern detected; insufficient confidence.');
+                patternInsights.push('No clear pattern');
+                emotionalTone = 'Cautious';
+            }
+
+            if (mode === 'Conservative' && confidence < 65) {
+                prediction = 'Pass';
+                reasonParts.push('Conservative mode: Confidence too low, passing.');
+                emotionalTone = 'Hesitant';
+                betMultiplier = 0.0;
+                confidence = 0.0;
+            } else if (mode === 'Aggressive' && confidence < 45) {
+                prediction = 'Pass';
+                reasonParts.push('Aggressive mode: Confidence too low, passing.');
+                emotionalTone = 'Hesitant';
+                betMultiplier = 0.0;
+                confidence = 0.0;
+            }
+
+            return [dominance, prediction, betMultiplier, reasonParts.join(' '), patternInsights, emotionalTone];
+        }
+
+        function advancedBetSelection(history, mode = 'Conservative') {
+            if (!history.length || history.length < 2) {
+                return ['Pass', 0.0, 'No results yet. Waiting for shoe to develop.', 'Cautious', ['No patterns']];
+            }
+
+            const pairTypes = [];
+            for (let i = 1; i < history.length; i++) {
+                const prev = history[i - 1] === 'Player' ? 'P' : history[i - 1] === 'Banker' ? 'B' : 'T';
+                const curr = history[i] === 'Player' ? 'P' : history[i] === 'Banker' ? 'B' : 'T';
+                if (prev !== 'T' && curr !== 'T') {
+                    pairTypes.push([prev, curr]);
+                }
+            }
+
+            const result = history[history.length - 1] === 'Player' ? 'P' : history[history.length - 1] === 'Banker' ? 'B' : 'T';
+
+            const lastFour = pairTypes.slice(-4).map(p => p[1]).filter(r => r !== 'T');
+            const streakType = lastFour.length >= 3 && lastFour.every(r => r === result) ? result : null;
+
+            const recentPairs = pairTypes.slice(-15).filter(p => p[0] !== 'T' && p[1] !== 'T');
+            if (pairTypes.length >= 8 && recentPairs.length) {
+                let [dominance, prediction, betMultiplier, reason, patternInsights, emotionalTone] = analyzePairPatterns(recentPairs, result, mode);
+                if (streakType) {
+                    prediction = streakType === 'P' ? 'Player' : 'Banker';
+                    dominance = `Streak (${streakType})`;
+                    const streakLength = pairTypes.slice(-5).filter(p => p[1] === streakType).length;
+                    betMultiplier = Math.min(3, Math.ceil(1 + 0.5 * (streakLength - 2)));
+                    reason += ` Prioritizing streak of ${streakLength} ${streakType}.`;
+                    patternInsights.push(`Streak: ${streakLength} ${streakType}`);
+                    emotionalTone = 'Confident';
+                    confidence = Math.min(75 + 5 * streakLength, 95);
+                } else {
+                    confidence = Math.min(betMultiplier * 100 / 3, 95);
+                }
+                return [prediction, confidence, reason, emotionalTone, patternInsights];
+            }
+            return ['Pass', 0.0, 'Insufficient results for pattern analysis.', 'Cautious', ['Insufficient data']];
+        }
+
+        function moneyManagement(bankroll, baseBet, result = null, previousPrediction = null, state) {
+            const minBet = Math.max(1.0, baseBet);
+            const maxBet = bankroll;
+
+            if (bankroll < minBet) {
+                return [0.0, false, true];
+            }
+
+            if (!state.consecutiveWins) state.consecutiveWins = 0;
+            if (!state.consecutiveLosses) state.consecutiveLosses = 0;
+            if (!state.betAmount) state.betAmount = baseBet;
+            if (!state.resultTracker) state.resultTracker = 0.0;
+            if (!state.profitLock) state.profitLock = 0.0;
+
+            let profitLocked = false;
+            let stopLoss = false;
+
+            if (result && ['Player', 'Banker'].includes(previousPrediction)) {
+                const effectiveBet = state.betAmount;
+                if ((previousPrediction === 'Player' && result === 'Player') ||
+                    (previousPrediction === 'Banker' && result === 'Banker')) {
+                    state.resultTracker += previousPrediction === 'Banker' ? effectiveBet * 0.95 : effectiveBet;
+                    state.consecutiveWins++;
+                    state.consecutiveLosses = 0;
+                    state.betAmount = baseBet;
+                } else {
+                    state.resultTracker -= effectiveBet;
+                    state.consecutiveLosses++;
+                    state.consecutiveWins = 0;
+                    state.betAmount = Math.min(3 * baseBet, Math.ceil((state.betAmount + 0.5 * baseBet) / baseBet) * baseBet);
+                }
+
+                if (state.resultTracker >= 3 * baseBet) {
+                    state.profitLock += state.resultTracker;
+                    state.resultTracker = 0.0;
+                    state.betAmount = baseBet;
+                    state.consecutiveWins = 0;
+                    state.consecutiveLosses = 0;
+                    profitLocked = true;
+                } else if (state.resultTracker <= -10 * baseBet) {
+                    state.betAmount = 0.0;
+                    stopLoss = true;
+                }
+            }
+
+            const betSize = Math.max(minBet, Math.min(state.betAmount, maxBet));
+            return [Math.round(betSize * 100) / 100, profitLocked, stopLoss];
+        }
+
+        function calculateBankroll(history, baseBet, state) {
+            let currentBankroll = state.initialBankroll;
+            const bankrollProgress = [];
+            const betSizes = [];
+            const pairTypes = [];
+            let previousResult = null;
+            state.resultTracker = 0.0;
+            state.profitLock = 0.0;
+            state.betAmount = baseBet;
+            state.consecutiveWins = 0;
+            state.consecutiveLosses = 0;
+
+            for (let i = 0; i < history.length; i++) {
+                const currentRounds = history.slice(0, i + 1);
+                const result = history[i];
+                const mappedResult = result === 'Player' ? 'P' : result === 'Banker' ? 'B' : 'T';
+
+                if (previousResult && previousResult !== 'T' && mappedResult !== 'T') {
+                    pairTypes.push([previousResult, mappedResult]);
+                }
+
+                const [bet, , , ,] = i !== 0 ? advancedBetSelection(currentRounds.slice(0, -1), state.aiMode) : ['Pass', 0, '', 'Neutral', []];
+                if (!['Player', 'Banker'].includes(bet)) {
+                    bankrollProgress.push(currentBankroll);
+                    betSizes.push(0.0);
+                    previousResult = mappedResult;
+                    continue;
+                }
+
+                const [betSize, , stopLoss] = moneyManagement(currentBankroll, baseBet, result, bet, state);
+                if (betSize === 0.0 || stopLoss) {
+                    bankrollProgress.push(currentBankroll);
+                    betSizes.push(0.0);
+                    previousResult = mappedResult;
+                    continue;
+                }
+
+                betSizes.push(betSize);
+                if (result === bet) {
+                    currentBankroll += bet === 'Banker' ? betSize * 0.95 : betSize;
+                } else if (result !== 'Tie') {
+                    currentBankroll -= betSize;
+                }
+
+                bankrollProgress.push(currentBankroll);
+                previousResult = mappedResult;
+            }
+
+            return [bankrollProgress, betSizes];
+        }
+
+        function calculateWinLossTracker(history, baseBet, aiMode, state) {
+            const tracker = [];
+            const pairTypes = [];
+            let previousResult = null;
+            state.resultTracker = 0.0;
+            state.profitLock = 0.0;
+            state.betAmount = baseBet;
+            state.consecutiveWins = 0;
+            state.consecutiveLosses = 0;
+
+            for (let i = 0; i < history.length; i++) {
+                const currentRounds = history.slice(0, i + 1);
+                const result = history[i];
+                const mappedResult = result === 'Player' ? 'P' : result === 'Banker' ? 'B' : 'T';
+
+                if (previousResult && previousResult !== 'T' && mappedResult !== 'T') {
+                    pairTypes.push([previousResult, mappedResult]);
+                }
+
+                const [bet, , , ,] = i !== 0 ? advancedBetSelection(currentRounds.slice(0, -1), aiMode) : ['Pass', 0, '', 'Neutral', []];
+                if (result === 'Tie') {
+                    tracker.push('T');
+                } else if (!['Player', 'Banker'].includes(bet)) {
+                    tracker.push('S');
+                } else if (result === bet) {
+                    tracker.push('W');
+                    moneyManagement(state.initialBankroll, baseBet, result, bet, state);
+                } else {
+                    tracker.push('L');
+                    moneyManagement(state.initialBankroll, baseBet, result, bet, state);
+                }
+
+                previousResult = mappedResult;
+            }
+            return tracker;
+        }
+
+        // React Component
+        function App() {
+            const [state, setState] = React.useState(() => {
+                const saved = localStorage.getItem('baccaratState');
+                return saved ? JSON.parse(saved) : {
+                    history: [],
+                    initialBankroll: 1000.0,
+                    baseBet: 10.0,
+                    aiMode: 'Conservative',
+                    selectedPatterns: ['Bead Bin', 'Win/Loss'],
+                    screenWidth: window.innerWidth,
+                    pairTypes: [],
+                    previousResult: null,
+                    stateHistory: [],
+                    stats: { wins: 0, losses: 0, ties: 0, streaks: [], oddPairs: 0, evenPairs: 0 },
+                    resultTracker: 0.0,
+                    profitLock: 0.0,
+                    betAmount: 10.0,
+                    consecutiveWins: 0,
+                    consecutiveLosses: 0
+                };
+            });
+
+            React.useEffect(() => {
+                localStorage.setItem('baccaratState', JSON.stringify(state));
+                const handleResize = () => setState(prev => ({ ...prev, screenWidth: window.innerWidth }));
+                window.addEventListener('resize', handleResize);
+                return () => window.removeEventListener('resize', handleResize);
+            }, [state]);
+
+            React.useEffect(() => {
+                const containers = ['bead-bin-scroll', 'big-road-scroll', 'big-eye-scroll', 'cockroach-scroll', 'win-loss-scroll'];
+                containers.forEach(id => {
+                    const element = document.getElementById(id);
+                    if (element) element.scrollLeft = element.scrollWidth;
+                });
+            }, [state.history, state.selectedPatterns]);
+
+            const addResult = (result) => {
+                const mappedResult = result === 'Player' ? 'P' : result === 'Banker' ? 'B' : 'T';
+                setState(prev => {
+                    const newStats = { ...prev.stats };
+                    newStats[result === 'Tie' ? 'ties' : 'wins']++;
+                    const newPairTypes = [...prev.pairTypes];
+                    if (prev.previousResult && prev.previousResult !== 'T' && mappedResult !== 'T') {
+                        const pairType = prev.previousResult === mappedResult ? 'Even' : 'Odd';
+                        newPairTypes.push([prev.previousResult, mappedResult]);
+                        newStats[pairType === 'Odd' ? 'oddPairs' : 'evenPairs']++;
+                    }
+                    const newStateHistory = [...prev.stateHistory, {
+                        pairTypes: [...prev.pairTypes],
+                        previousResult: prev.previousResult,
+                        resultTracker: prev.resultTracker,
+                        profitLock: prev.profitLock,
+                        betAmount: prev.betAmount,
+                        consecutiveWins: prev.consecutiveWins,
+                        consecutiveLosses: prev.consecutiveLosses,
+                        stats: { ...prev.stats }
+                    }];
+                    return {
+                        ...prev,
+                        history: [...prev.history, result],
+                        stats: newStats,
+                        previousResult: mappedResult,
+                        pairTypes: newPairTypes,
+                        stateHistory: newStateHistory
+                    };
+                });
+            };
+
+            const undo = () => {
+                setState(prev => {
+                    if (!prev.history.length) {
+                        alert('No results to undo!');
+                        return prev;
+                    }
+                    if (prev.stateHistory.length) {
+                        const lastState = prev.stateHistory[prev.stateHistory.length - 1];
+                        return {
+                            ...prev,
+                            history: prev.history.slice(0, -1),
+                            pairTypes: lastState.pairTypes,
+                            previousResult: lastState.previousResult,
+                            resultTracker: lastState.resultTracker,
+                            profitLock: lastState.profitLock,
+                            betAmount: lastState.betAmount,
+                            consecutiveWins: lastState.consecutiveWins,
+                            consecutiveLosses: lastState.consecutiveLosses,
+                            stats: lastState.stats,
+                            stateHistory: prev.stateHistory.slice(0, -1)
+                        };
+                    }
+                    return {
+                        ...prev,
+                        history: prev.history.slice(0, -1),
+                        pairTypes: prev.pairTypes.slice(0, -1),
+                        previousResult: prev.history.length > 1 ? (prev.history[prev.history.length - 2] === 'Player' ? 'P' : prev.history[prev.history.length - 2] === 'Banker' ? 'B' : 'T') : null
+                    };
+                });
+            };
+
+            const resetGame = () => {
+                const finalBankroll = state.history.length ? calculateBankroll(state.history, state.baseBet, state)[0].slice(-1)[0] : state.initialBankroll;
+                setState({
+                    history: [],
+                    initialBankroll: Math.max(1.0, finalBankroll + state.profitLock),
+                    baseBet: Math.min(10.0, Math.max(1.0, finalBankroll + state.profitLock)),
+                    aiMode: 'Conservative',
+                    selectedPatterns: ['Bead Bin', 'Win/Loss'],
+                    screenWidth: window.innerWidth,
+                    pairTypes: [],
+                    previousResult: null,
+                    stateHistory: [],
+                    stats: { wins: 0, losses: 0, ties: 0, streaks: [], oddPairs: 0, evenPairs: 0 },
+                    resultTracker: 0.0,
+                    profitLock: 0.0,
+                    betAmount: Math.min(10.0, Math.max(1.0, finalBankroll + state.profitLock)),
+                    consecutiveWins: 0,
+                    consecutiveLosses: 0
+                });
+            };
+
+            const maxDisplayCols = state.screenWidth < 768 ? 10 : 14;
+
+            const renderPattern = (type) => {
+                if (type === 'Bead Bin') {
+                    const sequence = state.history.slice(-84).map(r => r === 'Player' ? 'P' : r === 'Banker' ? 'B' : 'T');
+                    const grid = Array(6).fill().map(() => Array(maxDisplayCols).fill(''));
+                    sequence.forEach((result, i) => {
+                        const col = Math.floor(i / 6);
+                        const row = i % 6;
+                        if (col < maxDisplayCols) {
+                            const color = result === 'P' ? '#3182ce' : result === 'B' ? '#e53e3e' : '#38a169';
+                            grid[row][col] = `<div class="pattern-circle" style="background-color: ${color}; border-radius: 50%; border: 1px solid #ffffff;"></div>`;
+                        }
+                    });
+                    return (
+                        <div>
+                            <h3 className="text-xl font-semibold">Bead Bin</h3>
+                            <div id="bead-bin-scroll" className="pattern-scroll">
+                                {grid.map((row, i) => (
+                                    <div key={i} dangerouslySetInnerHTML={{ __html: row.join(' ') }} />
+                                ))}
+                            </div>
+                            {!state.history.length && <p>No results yet. Enter results below.</p>}
+                        </div>
+                    );
+                } else if (type === 'Big Road') {
+                    const [bigRoadGrid, numCols] = buildBigRoad(state.history);
+                    if (numCols > 0) {
+                        const displayCols = Math.min(numCols, maxDisplayCols);
+                        return (
+                            <div>
+                                <h3 className="text-xl font-semibold">Big Road</h3>
+                                <div id="big-road-scroll" className="pattern-scroll">
+                                    {bigRoadGrid.map((row, i) => (
+                                        <div key={i} className="flex">
+                                            {row.slice(0, displayCols).map((outcome, j) => (
+                                                <div key={j} className="pattern-circle" style={{
+                                                    backgroundColor: outcome === 'P' ? '#3182ce' : outcome === 'B' ? '#e53e3e' : 'transparent',
+                                                    border: outcome === 'T' ? '2px solid #38a169' : outcome ? '1px solid #ffffff' : 'none',
+                                                    borderRadius: outcome ? '50%' : '0'
+                                                }} />
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return <p>No Big Road data.</p>;
+                } else if (type === 'Big Eye') {
+                    const [bigRoadGrid, numCols] = buildBigRoad(state.history);
+                    const [bigEyeGrid, bigEyeCols] = buildBigEyeBoy(bigRoadGrid, numCols);
+                    if (bigEyeCols > 0) {
+                        const displayCols = Math.min(bigEyeCols, maxDisplayCols);
+                        return (
+                            <div>
+                                <h3 className="text-xl font-semibold">Big Eye Boy</h3>
+                                <p className="text-sm text-gray-600">Red (🔴): Repeat Pattern, Blue (🔵): Break Pattern</p>
+                                <div id="big-eye-scroll" className="pattern-scroll">
+                                    {bigEyeGrid.map((row, i) => (
+                                        <div key={i} className="flex">
+                                            {row.slice(0, displayCols).map((outcome, j) => (
+                                                <div key={j} className="pattern-circle" style={{
+                                                    backgroundColor: outcome === 'R' ? '#e53e3e' : outcome === 'B' ? '#3182ce' : 'transparent',
+                                                    border: outcome ? '1px solid #000000' : 'none',
+                                                    borderRadius: outcome ? '50%' : '0'
+                                                }} />
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return <p>No recent Big Eye data.</p>;
+                } else if (type === 'Cockroach') {
+                    const [bigRoadGrid, numCols] = buildBigRoad(state.history);
+                    const [cockroachGrid, cockroachCols] = buildCockroachPig(bigRoadGrid, numCols);
+                    if (cockroachCols > 0) {
+                        const displayCols = Math.min(cockroachCols, maxDisplayCols);
+                        return (
+                            <div>
+                                <h3 className="text-xl font-semibold">Cockroach Pig</h3>
+                                <p className="text-sm text-gray-600">Red (🔴): Repeat Pattern, Blue (🔵): Break Pattern</p>
+                                <div id="cockroach-scroll" className="pattern-scroll">
+                                    {cockroachGrid.map((row, i) => (
+                                        <div key={i} className="flex">
+                                            {row.slice(0, displayCols).map((outcome, j) => (
+                                                <div key={j} className="pattern-circle" style={{
+                                                    backgroundColor: outcome === 'R' ? '#e53e3e' : outcome === 'B' ? '#3182ce' : 'transparent',
+                                                    border: outcome ? '1px solid #000000' : 'none',
+                                                    borderRadius: outcome ? '50%' : '0'
+                                                }} />
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return <p>No recent Cockroach data.</p>;
+                } else if (type === 'Win/Loss') {
+                    const tracker = calculateWinLossTracker(state.history, state.baseBet, state.aiMode, state).slice(-maxDisplayCols);
+                    return (
+                        <div>
+                            <h3 className="text-xl font-semibold">Win/Loss</h3>
+                            <p className="text-sm text-gray-600">Green (🟢): Win, Red (🔴): Loss, Gray (⬜): Skip or Tie</p>
+                            <div id="win-loss-scroll" className="pattern-scroll">
+                                <div className="flex">
+                                    {tracker.map((result, i) => (
+                                        <div key={i} className="pattern-circle" style={{
+                                            backgroundColor: result === 'W' ? '#38a169' : result === 'L' ? '#e53e3e' : '#A0AEC0',
+                                            border: '1px solid #000000',
+                                            borderRadius: '50%'
+                                        }} />
+                                    ))}
+                                </div>
+                            </div>
+                            {!state.history.length && <p>No results yet. Enter results below.</p>}
+                        </div>
+                    );
+                }
+                return null;
+            };
+
+            const renderBankrollChart = () => {
+                const [bankrollProgress] = calculateBankroll(state.history, state.baseBet, state);
+                if (!bankrollProgress.length) return null;
+                const labels = bankrollProgress.map((_, i) => `Hand ${i + 1}`);
+                const trace = {
+                    x: labels,
+                    y: bankrollProgress,
+                    mode: 'lines+markers',
+                    name: 'Bankroll',
+                    line: { color: '#38a169', width: 2 },
+                    marker: { size: 6 }
+                };
+                const layout = {
+                    title: { text: 'Bankroll Over Time', x: 0.5, xanchor: 'center' },
+                    xaxis: { title: 'Hand', tickangle: 45 },
+                    yaxis: { title: 'Bankroll ($)', autorange: true },
+                    template: 'plotly_white',
+                    height: 400,
+                    margin: { l: 40, r: 40, t: 50, b: 100 }
+                };
+                return <div id="bankroll-chart" className="w-full" ref={el => el && Plotly.newPlot(el, [trace], layout)} />;
+            };
+
+            return (
+                <div className="container mx-auto p-4">
+                    <h1 className="text-3xl font-bold text-center mb-4">Mang Baccarat Predictor</h1>
+
+                    <div className="border rounded p-4 mb-4">
+                        <h3 className="text-xl font-semibold">Game Settings</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium">Initial Bankroll</label>
+                                <input
+                                    type="number"
+                                    value={state.initialBankroll}
+                                    onChange={e => setState(prev => ({ ...prev, initialBankroll: parseFloat(e.target.value) || 1.0 }))}
+                                    min="1"
+                                    step="10"
+                                    className="w-full p-2 border rounded"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">Base Bet (Unit Size)</label>
+                                <input
+                                    type="number"
+                                    value={state.baseBet}
+                                    onChange={e => setState(prev => ({ ...prev, baseBet: Math.min(100, Math.max(1, parseFloat(e.target.value) || 1.0)) }))}
+                                    min="1"
+                                    max="100"
+                                    step="1"
+                                    className="w-full p-2 border rounded"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium">AI Mode</label>
+                                <select
+                                    value={state.aiMode}
+                                    onChange={e => setState(prev => ({ ...prev, aiMode: e.target.value }))}
+                                    className="w-full p-2 border rounded"
+                                >
+                                    <option>Conservative</option>
+                                    <option>Aggressive</option>
+                                </select>
+                            </div>
+                        </div>
+                        <p className="mt-2 text-sm">Money Management: Balanced Progression (increases bet after loss, resets after win, with profit lock at 3x base bet and stop-loss at -10x base bet)</p>
+                    </div>
+
+                    <div className="border rounded p-4 mb-4">
+                        <h3 className="text-xl font-semibold">Input Game Results</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <button onClick={() => addResult('Player')} className="bg-blue-500 text-white p-2 rounded">Player</button>
+                            <button onClick={() => addResult('Banker')} className="bg-red-500 text-white p-2 rounded">Banker</button>
+                            <button onClick={() => addResult('Tie')} className="bg-green-500 text-white p-2 rounded">Tie</button>
+                            <button onClick={undo} disabled={!state.history.length} className="bg-gray-500 text-white p-2 rounded disabled:opacity-50">Undo</button>
+                        </div>
+                    </div>
+
+                    <div className="border rounded p-4 mb-4">
+                        <h3 className="text-xl font-semibold">Shoe Patterns</h3>
+                        <select
+                            multiple
+                            value={state.selectedPatterns}
+                            onChange={e => setState(prev => ({ ...prev, selectedPatterns: Array.from(e.target.selectedOptions, option => option.value) }))}
+                            className="w-full p-2 border rounded mb-4"
+                        >
+                            {['Bead Bin', 'Big Road', 'Big Eye', 'Cockroach', 'Win/Loss'].map(option => (
+                                <option key={option} value={option}>{option}</option>
+                            ))}
+                        </select>
+                        {state.selectedPatterns.map(pattern => (
+                            <div key={pattern} className="mb-4">{renderPattern(pattern)}</div>
+                        ))}
+                    </div>
+
+                    <div className="border rounded p-4 mb-4">
+                        <h3 className="text-xl font-semibold">Prediction</h3>
+                        {(() => {
+                            const currentBankroll = state.history.length ? calculateBankroll(state.history, state.baseBet, state)[0].slice(-1)[0] : state.initialBankroll;
+                            const [bet, confidence, reason, emotionalTone, patternInsights] = advancedBetSelection(state.history, state.aiMode);
+                            const [recommendedBetSize, , stopLoss] = moneyManagement(currentBankroll, state.baseBet, null, null, state);
+                            if (currentBankroll < Math.max(1.0, state.baseBet)) {
+                                return (
+                                    <div>
+                                        <p className="text-red-500">Insufficient bankroll to place a bet. Please increase your bankroll or reset the game.</p>
+                                        <p><strong>No Bet</strong>: Bankroll too low to continue betting.</p>
+                                    </div>
+                                );
+                            }
+                            if (stopLoss) {
+                                return (
+                                    <div>
+                                        <p className="text-red-500">Loss limit reached. Pausing betting until reset.</p>
+                                        <p><strong>No Bet</strong>: Loss limit reached.</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div>
+                                    {bet === 'Pass' ? (
+                                        <p><strong>No Bet</strong>: Insufficient confidence or bankroll to place a bet.</p>
+                                    ) : (
+                                        <p><strong>Bet</strong>: {bet} | <strong>Confidence</strong>: {confidence}% | <strong>Bet Size</strong>: ${recommendedBetSize.toFixed(2)} | <strong>Mood</strong>: {emotionalTone}</p>
+                                    )}
+                                    <p><strong>Profit Lock</strong>: ${state.profitLock.toFixed(2)}</p>
+                                    <p><strong>Reasoning</strong>: {reason}</p>
+                                    {patternInsights.length > 0 && (
+                                        <div>
+                                            <h4 className="text-lg font-semibold">Pattern Insights</h4>
+                                            <p>Detected patterns influencing the prediction:</p>
+                                            <ul className="list-disc pl-5">
+                                                {patternInsights.map((insight, i) => (
+                                                    <li key={i}>{insight}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="border rounded p-4 mb-4">
+                        <h3 className="text-xl font-semibold">Bankroll Progress</h3>
+                        {(() => {
+                            const [bankrollProgress, betSizes] = calculateBankroll(state.history, state.baseBet, state);
+                            if (!bankrollProgress.length) {
+                                return (
+                                    <div>
+                                        <p><strong>Current Bankroll</strong>: ${state.initialBankroll.toFixed(2)}</p>
+                                        <p><strong>Profit Lock</strong>: ${state.profitLock.toFixed(2)}</p>
+                                        <p>No bankroll history yet. Enter results below.</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <div>
+                                    <h4 className="text-lg font-semibold">Bankroll Progress</h4>
+                                    {bankrollProgress.map((val, i) => (
+                                        <p key={i}>Hand {bankrollProgress.length - i}: ${val.toFixed(2)} | {betSizes[i] > 0 ? `Bet $${betSizes[i].toFixed(2)}` : 'No Bet'}</p>
+                                    ))}
+                                    <p><strong>Current Bankroll</strong>: ${bankrollProgress[bankrollProgress.length - 1].toFixed(2)}</p>
+                                    <p><strong>Profit Lock</strong>: ${state.profitLock.toFixed(2)}</p>
+                                    <h4 className="text-lg font-semibold">Bankroll Progression Chart</h4>
+                                    {renderBankrollChart()}
+                                </div>
+                            );
+                        })()}
+                    </div>
+
+                    <div className="border rounded p-4">
+                        <h3 className="text-xl font-semibold">Reset</h3>
+                        <button onClick={resetGame} className="bg-blue-500 text-white p-2 rounded">New Game</button>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
