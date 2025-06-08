@@ -307,13 +307,13 @@ def simulate_games():
     st.success("Simulated 100 games. Check stats for results.")
 
 def main():
-    """Main function to render the Streamlit app."""
+    """Main function to render the Streamlit app with light UI."""
     st.set_page_config(page_title="Baccarat Predictor", layout="centered")
     st.markdown("""
         <style>
-        .main {background-color: #2C2F33; color: white;}
+        .main {background-color: #F5F5F5; color: #333333;}
         .stButton>button {
-            background-color: #7289DA;
+            background-color: #4A90E2;
             color: white;
             font-weight: bold;
             padding: 10px;
@@ -321,20 +321,20 @@ def main():
             border: none;
         }
         .stButton>button:hover {
-            background-color: #99AAB5;
+            background-color: #357ABD;
         }
         .stTextInput>div>input {
-            background-color: #23272A;
-            color: white;
-            border: none;
+            background-color: #FFFFFF;
+            color: #333333;
+            border: 1px solid #CCCCCC;
         }
         .stTextArea textarea {
-            background-color: #23272A;
-            color: white;
-            border: none;
+            background-color: #FFFFFF;
+            color: #333333;
+            border: 1px solid #CCCCCC;
         }
-        .title {font-size: 24px; font-weight: bold; text-align: center;}
-        .label {font-size: 16px;}
+        .title {font-size: 24px; font-weight: bold; text-align: center; color: #333333;}
+        .label {font-size: 16px; color: #333333;}
         </style>
     """, unsafe_allow_html=True)
 
