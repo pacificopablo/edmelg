@@ -47,7 +47,6 @@ def initialize_session_state():
             'bet_history': []
         }
     else:
-        # Validate stats
         default_stats = {
             'wins': 0,
             'losses': 0,
@@ -128,7 +127,7 @@ def compute_bayesian_probabilities(results):
 def analyze_patterns():
     """Analyze patterns, Markov, and Bayesian probabilities to determine dominant strategy and bet amount."""
     results = list(st.session_state.results)
-    pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
+    pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']] if isinstance(st.session_state.pair_types, deque) else []
     if len(pairs) < 2:
         st.session_state.bet_amount = 0
         return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}, "N/A", "N/A", None
@@ -366,12 +365,10 @@ def reset_all():
 
 def record_result(result):
     """Record a game result and update state."""
-    # Ensure pair_types is a deque
     if not isinstance(st.session_state.pair_types, deque):
         st.session_state.alerts.append({"type": "warning", "message": "pair_types was invalid; reinitialized.", "id": str(uuid.uuid4())})
         st.session_state.pair_types = deque(maxlen=100)
 
-    # Ensure stats is valid
     if not isinstance(st.session_state.stats, dict):
         st.session_state.stats = {
             'wins': 0,
@@ -452,7 +449,6 @@ def record_result(result):
             if len(last_two_pairs) == 2 and last_two_pairs[0][1] != last_two_pairs[1][1]:
                 st.session_state.stats['alternating_pairs'] = int(st.session_state.stats.get('alternating_pairs', 0)) + 1
 
-    # Debug: Log pair_types
     st.session_state.alerts.append({"type": "info", "message": f"Debug: pair_types = {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())})
     last_four_pairs = [p for p in st.session_state.pair_types[-4:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
     last_four = [p[1] for p in last_four_pairs if p[1] != 'T']
@@ -547,7 +543,6 @@ def undo():
     st.session_state.consecutive_losses = last_state.get('consecutive_losses', 0)
     st.session_state.streak_type = last_state.get('streak_type', None)
     
-    # Validate stats
     if not isinstance(last_state.get('stats', {}), dict):
         st.session_state.stats = {
             'wins': 0,
@@ -583,7 +578,7 @@ def undo():
 def simulate_games():
     """Simulate 100 games."""
     outcomes = ['P', 'B', 'T']
-    weights = [0.466, 0.458, 0.096]
+    weights = [0.446, 0.458, 0.096]
     for _ in range(100):
         result = random.choices(outcomes, weights)[0]
         record_result(result)
@@ -599,7 +594,6 @@ def simulate_choppy_games():
         else:
             result = random.choices(outcomes, weights)[0]
         record_result(result)
-    
     st.session_state.alerts.append({"type": "success", "message": "Simulated 100 choppy games.", "id": str(uuid.uuid4())})
 
 def clear_alerts():
@@ -609,134 +603,138 @@ def clear_alerts():
 def main():
     """Main Streamlit application."""
     initialize_session_state()
+    st.session_state.alerts.append({"type": "info", "message": "Main function loaded successfully.", "id": str(uuid.uuid4())})
 
-    st.markdown("""
+    # Start of HTML/CSS block
+    css_html = """
         <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         <style>
-        body, .stApp {
-            background-color: #1F2528;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #E5E7EB;
-        }
-        .card {
-            background-color: #2C2F33;
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1rem;
-        }
-        .stButton>button {
-            background-color: #6366F1;
-            color: white;
-            border-radius: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            transition: background-color 0.2s;
-            width: 100%;
-        }
-        .stButton>button:hover {
-            background-color: #4F46E5;
-        }
-        .stNumberInput input {
-            background-color: #23272A;
-            color: white;
-            border: 1px solid #4B5563;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-        }
-        .stDataFrame table {
-            background-color: #23272A;
-            color: white;
-            border-collapse: collapse;
-        }
-        .stDataFrame th {
-            background-color: #374151;
-            color: white;
-            font-weight: 600;
-            padding: 0.75rem;
-        }
-        .stDataFrame td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #4B5563;
-        }
-        .stDataFrame tr:nth-child(even) {
-            background-color: #2D3748;
-        }
-        h1 {
-            font-size: 2.25rem;
-            font-weight: 700;
-            color: #F3F4F6;
-            margin-bottom: 1rem;
-        }
-        h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #D1D5DB;
-            margin-bottom: 0.75rem;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .alert-success {
-            background-color: #10B981;
-            color: white;
-        }
-        .alert-error {
-            background-color: #EF4444;
-            color: white;
-        }
-        .alert-info {
-            background-color: #3B82F6;
-            color: white;
-        }
-        .alert-warning {
-            background-color: #F59E0B;
-            color: white;
-        }
-        .sidebar .stButton>button {
-            margin-bottom: 0.5rem;
-        }
-        .result-history {
-            display: flex;
-            flex-wrap: nowrap;
-            overflow-x: auto;
-            scroll-behavior: smooth;
-            gap: 0.25rem;
-            padding: 0.5rem;
-            max-width: 100%;
-        }
-        .result-item {
-            min-width: 2rem;
-            height: 2rem;
-            line-height: 2rem;
-            text-align: center;
-            border-radius: 0.25rem;
-            font-size: 0.875rem;
-            font-weight: bold;
-            color: white;
-        }
-        .result-p {
-            background-color: #3B82F6;
-        }
-        .result-b {
-            background-color: #EF4444;
-        }
-        .result-t {
-            background-color: #10B981;
-        }
-        .next-bet-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.25rem;
-            font-size: 0.875rem;
-            font-weight: bold;
-            text-align: center;
-            min-width: 4rem;
-        }
+            body, .stApp {
+                background-color: #1F2528;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                color: #E5E7EB;
+            }
+            .card {
+                background-color: #2C2F33;
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                margin-bottom: 1rem;
+            }
+            .stButton>button {
+                background-color: #6366F1;
+                color: white;
+                border-radius: 0.5rem;
+                padding: 0.75rem 1.5rem;
+                font-weight: 600;
+                transition: background-color 0.2s;
+                width: 100%;
+            }
+            .stButton>button:hover {
+                background-color: #4F46E5;
+            }
+            .stNumberInput input {
+                background-color: #23272A;
+                color: white;
+                border: 1px solid #4B5563;
+                border-radius: 0.5rem;
+                padding: 0.5rem;
+            }
+            .stDataFrame table {
+                background-color: #23272A;
+                color: white;
+                border-collapse: collapse;
+            }
+            .stDataFrame th {
+                background-color: #374151;
+                color: white;
+                font-weight: 600;
+                padding: 0.75rem;
+            }
+            .stDataFrame td {
+                padding: 0.75rem;
+                border-bottom: 1px solid #4B5563;
+            }
+            .stDataFrame tr:nth-child(even) {
+                background-color: #2D3748;
+            }
+            h1 {
+                font-size: 2.25rem;
+                font-weight: 700;
+                color: #F3F4F6;
+                margin-bottom: 1rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #D1D5DB;
+                margin-bottom: 0.75rem;
+            }
+            .alert {
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            .alert-success {
+                background-color: #10B981;
+                color: white;
+            }
+            .alert-error {
+                background-color: #EF4444;
+                color: white;
+            }
+            .alert-info {
+                background-color: #3B82F6;
+                color: white;
+            }
+            .alert-warning {
+                background-color: #F59E0B;
+                color: white;
+            }
+            .sidebar .stButton>button {
+                margin-bottom: 0.5rem;
+            }
+            .result-history {
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                scroll-behavior: smooth;
+                gap: 0.25rem;
+                padding: 0.5rem;
+                max-width: 100%;
+            }
+            .result-item {
+                min-width: 2rem;
+                height: 2rem;
+                line-height: 2rem;
+                text-align: center;
+                border-radius: 0.25rem;
+                font-size: 0.875rem;
+                font-weight: bold;
+                color: white;
+            }
+            .result-p {
+                background-color: #3B82F6;
+            }
+            .result-b {
+                background-color: #EF4444;
+            }
+            .result-t {
+                background-color: #10B981;
+            }
+            .next-bet-badge {
+                display: inline-block;
+                padding: 0.25rem 0.75rem;
+                border-radius: 0.25rem;
+                font-size: 0.875rem;
+                font-weight: bold;
+                text-align: center;
+                min-width: 4rem;
+            }
         </style>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(css_html, unsafe_allow_html=True)
+    # End of HTML/CSS block
 
     alert_container = st.container()
     with alert_container:
@@ -850,7 +848,7 @@ def main():
         alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
         st.markdown(f"""
             <div class="card">
-                <p class="text-sm font-semibold text-gray-400">Statistics</p>
+                <p class="text-sm font-semibold text-gray-400</p>
                 <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
                 <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
                 <p class="text-base text-white">Alternation Rate: {alternation_rate:.2f}</p>
@@ -868,13 +866,13 @@ def main():
                     {
                         "label": "Pattern Confidence",
                         "data": [
-                            st.session_state.pattern_confidence.get("Odd", 0),
-                            st.session_state.pattern_confidence.get("Even", 0),
-                            st.session_state.pattern_confidence.get("Alternating", 0),
-                            st.session_state.pattern_confidence.get("Streak", 0),
-                            st.session_state.pattern_confidence.get("Choppy", 0),
-                            st.session_state.pattern_confidence.get("Markov", 0),
-                            st.session_state.pattern_confidence.get("Bayesian", 0)
+                            st.session_state.pattern_confidence.get("Odd", 0.0),
+                            st.session_state.pattern_confidence.get("Even", 0.0),
+                            st.session_state.pattern_confidence.get("Alternating", 0.0),
+                            st.session_state.pattern_confidence.get("Streak", 0.0),
+                            st.session_state.pattern_confidence.get("Choppy", 0.0),
+                            st.session_state.pattern_confidence.get("Markov", 0.0),
+                            st.session_state.pattern_confidence.get("Bayesian", 0.0)
                         ],
                         "borderColor": "#10B981",
                         "backgroundColor": "rgba(16, 185, 129, 0.2)",
@@ -900,6 +898,8 @@ def main():
                 }
             }
         }
+        
+        chart_json = json.dumps(chart_config, ensure_ascii=True).replace('"', '&quot;')
         st.markdown(f"""
             <div class="card">
                 <canvas id="patternChart"></canvas>
@@ -908,17 +908,17 @@ def main():
             <script>
                 document.addEventListener('DOMContentLoaded', function() {{
                     const ctx = document.getElementById('patternChart').getContext('2d');
-                    new Chart(ctx, {json.dumps(chart_config)});
+                    new Chart(ctx, {chart_json});
                 }});
             </script>
         """, unsafe_allow_html=True)
 
         st.markdown('<h2>Bet History</h2>', unsafe_allow_html=True)
         if st.session_state.stats.get('bet_history', []):
-            bet_history = pd.DataFrame(st.session_state.stats['bet_history'])
+            bet_history = pd.DataFrame(st.session_state.stats.get('bet_history', []))
             st.dataframe(bet_history, use_container_width=True, height=200)
         else:
             st.markdown('<p class="text-gray-400">No bets placed yet.</p>', unsafe_allow_html=True)
 
-if __name__ == "__main__':
+if __name__ == "__main__":
     main()
