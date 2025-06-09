@@ -482,20 +482,6 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
 
-        # Statistics
-        total_games = st.session_state.stats['wins'] + st.session_state.stats['losses']
-        win_rate = (st.session_state.stats['wins'] / total_games * 100) if total_games > 0 else 0
-        avg_streak = sum(st.session_state.stats['streaks']) / len(st.session_state.stats['streaks']) if st.session_state.stats['streaks'] else 0
-        st.markdown(f"""
-            <div class="card">
-                <p class="text-sm font-semibold text-gray-400">Statistics</p>
-                <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
-                <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
-                <p class="text-base text-white">Patterns: Odd: {st.session_state.stats['odd_pairs']}, Even: {st.session_state.stats['even_pairs']}, Alternating: {st.session_state.stats['alternating_pairs']}</p>
-                <p class="text-base text-white">Streak: {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
-            </div>
-        """, unsafe_allow_html=True)
-
         # Result input buttons
         st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
@@ -518,6 +504,20 @@ def main():
             st.dataframe(pd.DataFrame(history_data), use_container_width=True, height=300)
         else:
             st.markdown('<p class="text-gray-400">No history yet.</p>', unsafe_allow_html=True)
+
+        # Statistics
+        total_games = st.session_state.stats['wins'] + st.session_state.stats['losses']
+        win_rate = (st.session_state.stats['wins'] / total_games * 100) if total_games > 0 else 0
+        avg_streak = sum(st.session_state.stats['streaks']) / len(st.session_state.stats['streaks']) if st.session_state.stats['streaks'] else 0
+        st.markdown(f"""
+            <div class="card">
+                <p class="text-sm font-semibold text-gray-400">Statistics</p>
+                <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
+                <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
+                <p class="text-base text-white">Patterns: Odd: {st.session_state.stats['odd_pairs']}, Even: {st.session_state.stats['even_pairs']}, Alternating: {st.session_state.stats['alternating_pairs']}</p>
+                <p class="text-base text-white">Streak: {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
+            </div>
+        """, unsafe_allow_html=True)
 
         # Bet History
         st.markdown('<h2>Bet History</h2>', unsafe_allow_html=True)
