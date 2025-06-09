@@ -173,7 +173,7 @@ def reset_all():
     st.session_state.streak_type = None
     st.session_state.stats = {
         'wins': 0,
-        'losts': 0,
+        'losses': 0,
         'ties': 0,
         'streaks': [],
         'odd_pairs': 0,
@@ -437,6 +437,11 @@ def main():
         .sidebar .stButton>button {
             margin-bottom: 0.5rem;
         }
+        .result-history {
+            white-space: pre-wrap;
+            overflow-x: auto;
+            max-width: 100%;
+        }
         </style>
     """, unsafe_allow_html=True)
 
@@ -492,6 +497,19 @@ def main():
                     <p class="text-xl font-bold text-white">{'No Bet' if st.session_state.bet_amount == 0 else f'${st.session_state.bet_amount:.2f}'}</p>
                 </div>
             """, unsafe_allow_html=True)
+
+        # Result History (P, B, T sequence)
+        st.markdown('<h2>Result History</h2>', unsafe_allow_html=True)
+        if st.session_state.results:
+            result_sequence = " ".join(st.session_state.results)
+            st.markdown(f"""
+                <div class="card">
+                    <p class="text-sm font-semibold text-gray-400">Results (P: Player, B: Banker, T: Tie)</p>
+                    <p class="text-base text-white result-history">{result_sequence}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
 
         # Result input buttons
         st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
