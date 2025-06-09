@@ -1,4 +1,3 @@
-
 import streamlit as st
 import random
 import pandas as pd
@@ -176,16 +175,167 @@ def analyze_patterns():
     valid_pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
     if len(valid_pairs) < 2:
         st.session_state.bet_amount = 0
-        return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}, "consecutive_wins = st.session_state.consecutive_wins
-    st.session_state.consecutive_losses = 0
-    st.session_state.bet_amount = 0.0
-    pattern_scores, dominance, prediction, streak_type = analyze_patterns()
-    st.session_state.pattern_confidence = pattern_scores
-    st.session_state.current_dominance = dominance
-    st.session_state.next_prediction = prediction
-    st.session_state.streak_type = streak_type
-    st.session_state.processing = False
-    return
+        return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}, "N/A", "N/A", None
+
+    recent_pairs = valid_pairs[-10:] if len(valid_pairs) >= 10 else valid_pairs
+    alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
+    window_sizes = [3, 5, 8] if alternation_rate > 0.7 else [5, 10, 8]
+
+    pattern_scores = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
+    total_weight = 0.0
+
+    for window in window_sizes:
+        if len(valid_pairs) >= window:
+            recent_pairs_window = valid_pairs[-window:]
+            recent_results = results[-window-1:] if len(results) >= window+1 else results
+
+            odd_count = sum(1 for a, b in recent_pairs_window if a != b)
+            even_count = sum(1 for a, b in recent_pairs_window if a == b)
+            total_pairs = odd_count + even_count
+            odd_score = (odd_count / total_pairs) * (window / 20) if total_pairs > 0 else 0
+            even_score = (even_count / total_pairs) * (window / 20) if total_pairs > 0 else 0
+            pattern_scores["Odd"] += odd_score
+            pattern_scores["Even"] += even_score
+            total_weight += window / 20
+
+            alternating_count = sum(1 for i in range(len(recent_pairs_window)-1) if recent_pairs_window[i][1] != recent_pairs_window[i+1][1])
+            alternating_score = (alternating_count / (window-1)) * (window / 20) if window > 1 else 0
+            pattern_scores["Alternating"] += alternating_score
+
+            streak_length = 1
+            current_streak = recent_results[-1] if recent_results else None
+            for i in range(2, len(recent_results)+1):
+                if recent_results[-i] == current_streak and recent_results[-i] != 'T':
+                    streak_length += 1
+                else:
+                    break
+            streak_score = (streak_length / 5) * (window / 20) if streak_length >= 2 else 0
+            pattern_scores["Streak"] += streak_score
+
+            choppy_count = sum(1 for i in range(len(recent_results)-1) if recent_results[i] != recent_results[i+1] and recent_results[i] != 'T' and recent_results[i+1] != 'T')
+            choppy_score = (choppy_count / (window-1)) * (window / 20) if window > 1 else 0
+            pattern_scores["Choppy"] += choppy_score
+
+    if total_weight > 0:
+        for pattern in ['Odd', 'Even', 'Alternating', 'Streak', 'Choppy']:
+            pattern_scores[pattern] /= total_weight
+
+    markov_probs = compute_markov_probabilities(results)
+    last_result = st.session_state.previous_result
+    if last_result in markov_probs:
+        max_prob = max(markov_probs[last_result].values())
+        markov_prediction = max(markov_probs[last_result], key=markov_probs[last_result].get)
+        pattern_scores["Markov"] = max_prob
+    else:
+        markov_prediction = random.choice(['P', 'B'])
+        pattern_scores["Markov"] = 0.458
+
+    bayesian_probs = compute_bayesian_probabilities(results)
+    if last_result in bayesian_probs:
+        max_prob = max(bayesian_probs[last_result].values())
+        bayesian_prediction = max(bayesian_probs[last_result], key=bayesian_probs[last_result].get)
+        pattern_scores["Bayesian"] = max_prob
+    else:
+        bayesian_prediction = random.choice(['P', 'B'])
+        pattern_scores["Bayesian"] = 0.458
+
+    dominant_pattern = max(pattern_scores, key=pattern_scores.get)
+    confidence = pattern_scores[dominant_pattern]
+    streak_type = None
+    bet_multiplier = 1.0
+
+    if len(valid_pairs) >= 8:
+        odd_count = sum(1 for a, b in recent_pairs if a != b)
+        even_count = sum(1 for a, b in recent_pairs if a == b)
+        dominance_diff = abs(odd_count - even_count)
+        total_pairs = len(recent_pairs)
+        confidence = dominance_diff / total_pairs if total_pairs > 0 else 0.0
+
+        pair_sequence = ["Odd" if a != b else "Even" for a, b in recent_pairs]
+        cycle_detected = False
+        cycle_length = 0
+        for length in range(2, min(5, len(pair_sequence) // 2 + 1)):
+            if len(pair_sequence) >= 2 * length:
+                recent = pair_sequence[-2 * length:-length]
+                previous = pair_sequence[-length:]
+                if recent == previous:
+                    cycle_detected = True
+                    cycle_length = length
+                    confidence += 0.2
+                    break
+
+        last_three_pairs = pair_sequence[-3:] if len(pair_sequence) >= 3 else []
+        pair_streak = len(last_three_pairs) >= 3 and all(p == last_three_pairs[0] for p in last_three_pairs)
+
+        last_four = [p[1] for p in valid_pairs[-4:] if isinstance(p, (tuple, list)) and len(p) > 1 and p[1] in ['P', 'B', 'T'] and p[1] != 'T']
+        if len(last_four) >= 3 and all(r == last_four[-1] for r in last_four):
+            streak_type = last_four[-1]
+            pattern_prediction = "Player" if streak_type == 'P' else "Banker"
+            dominance = f"Streak ({streak_type})"
+            streak_length = len([p for p in valid_pairs[-5:] if isinstance(p, (tuple, list)) and len(p) > 1 and p[1] == streak_type])
+            bet_multiplier = min(3.0, 1 + 0.5 * (streak_length - 2))
+        elif pair_streak:
+            dominance = f"Pair Streak ({last_three_pairs[0]})"
+            if last_three_pairs[0] == "Odd":
+                pattern_prediction = "Player" if last_result == 'B' else "Banker"
+            else:
+                pattern_prediction = "Player" if last_result == 'P' else "Banker"
+            bet_multiplier = math.ceil(1.5 if confidence < 0.7 else 2.0)
+        elif cycle_detected:
+            dominance = f"Cycle (length {cycle_length})"
+            last_pair_type = pair_sequence[-1]
+            if last_pair_type == "Odd":
+                pattern_prediction = "Player" if last_result == 'B' else "Banker"
+            else:
+                pattern_prediction = "Player" if last_result == 'P' else "Banker"
+            bet_multiplier = math.ceil(1.2 + 0.3 * cycle_length)
+        elif dominance_diff >= 4 and confidence > 0.5:
+            if odd_count > even_count:
+                dominance = "Odd"
+                pattern_prediction = "Player" if last_result == 'B' else "Banker"
+            else:
+                dominance = "Even"
+                pattern_prediction = "Player" if last_result == 'P' else "Banker"
+            bet_multiplier = math.ceil(1.0 + confidence)
+        else:
+            dominance = "N/A"
+            pattern_prediction = "Hold"
+            bet_multiplier = 0.0
+    else:
+        dominance = "N/A"
+        pattern_prediction = "N/A"
+        bet_multiplier = 1.0
+
+    final_prediction = pattern_prediction
+    if pattern_prediction == "Hold":
+        if bayesian_prediction in ['P', 'B'] and pattern_scores["Bayesian"] > 0.5:
+            final_prediction = "Player" if bayesian_prediction == 'P' else "Banker"
+            dominance = "Bayesian"
+            bet_multiplier = 1.0
+        elif markov_prediction in ['P', 'B'] and pattern_scores["Markov"] > 0.5:
+            final_prediction = "Player" if markov_prediction == 'P' else "Banker"
+            dominance = "Markov"
+            bet_multiplier = 1.0
+    elif pattern_prediction in ["Player", "Banker"]:
+        markov_pred_equiv = "Player" if markov_prediction == 'P' else "Banker" if markov_prediction == 'B' else "Hold"
+        bayesian_pred_equiv = "Player" if bayesian_prediction == 'P' else "Banker" if bayesian_prediction == 'B' else "Hold"
+        if bayesian_pred_equiv in ["Player", "Banker"] and pattern_scores["Bayesian"] > confidence + 0.2 and pattern_scores["Bayesian"] > pattern_scores["Markov"]:
+            final_prediction = bayesian_pred_equiv
+            dominance = "Bayesian"
+            bet_multiplier = 1.0
+        elif markov_pred_equiv in ["Player", "Banker"] and pattern_scores["Markov"] > confidence + 0.2:
+            final_prediction = markov_pred_equiv
+            dominance = "Markov"
+            bet_multiplier = 1.0
+
+    if len(results) < 5:
+        final_prediction = "Hold"
+        dominance = "N/A"
+        bet_multiplier = 0.0
+
+    st.session_state.bet_amount = min(3 * st.session_state.base_amount, bet_multiplier * st.session_state.base_amount) if final_prediction in ["Player", "Banker"] else 0
+
+    return pattern_scores, dominance, final_prediction, streak_type
 
 def reset_betting():
     """Reset betting parameters and update prediction."""
@@ -531,7 +681,7 @@ def undo():
 def simulate_games():
     """Simulate 100 games."""
     if st.session_state.processing:
-        st.session_state.alerts.append({"type": "warning", "message": "Processing another action, please wait.", "id": str(uuid4())})
+        st.session_state.alerts.append({"type": "warning", "message": "Processing another action, please wait.", "id": str(uuid.uuid4())})
         return
     try:
         outcomes = ['P', 'B', 'T']
@@ -830,7 +980,7 @@ def main():
         st.markdown("<h2>Pattern Confidence</h2>", unsafe_allow_html=True)
         chart_config = {
             "type": "pie",
-            "data": {
+            "data Lietuvoje:
                 "labels": ["Odd", "Even", "Alternating", "Streak", "Choppy", "Markov", "Bayesian"],
                 "datasets": [
                     {
@@ -875,7 +1025,7 @@ def main():
             <div class="card">
                 <canvas id="chart"></canvas>
             </div>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
             <script>
                 document.addEventListener('DOMContentLoaded', () => {{
                     const ctx = document.getElementById('chart').getContext('2d');
