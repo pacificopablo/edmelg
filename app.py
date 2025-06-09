@@ -1,3 +1,4 @@
+
 import streamlit as st
 import random
 import pandas as pd
@@ -39,7 +40,6 @@ def set_base_amount():
         amount = float(st.session_state.base_amount_input)
         if 1 <= amount <= 100:
             st.session_state.base_amount = amount
-            # Set bet_amount based on prediction
             st.session_state.bet_amount = st.session_state.base_amount if st.session_state.next_prediction in ["Player", "Banker"] else 0
             st.session_state.alerts.append({"type": "success", "message": "Base amount updated successfully.", "id": str(uuid.uuid4())})
         else:
@@ -143,7 +143,7 @@ def analyze_patterns():
 
     # Adjust for shoe position
     if len(results) < 20:
-        prediction = "Hold"  # Conservative early in shoe
+        prediction = "Hold"
         dominance = "N/A"
         st.session_state.bet_amount = 0
 
@@ -163,7 +163,6 @@ def reset_betting():
     st.session_state.consecutive_losses = 0
     st.session_state.streak_type = None
 
-    # Update prediction based on pattern analysis
     pattern_scores, dominance, prediction, streak_type = analyze_patterns()
     st.session_state.pattern_confidence = pattern_scores
     st.session_state.current_dominance = dominance
@@ -250,9 +249,12 @@ def record_result(result):
             if last_two_pairs[0][1] != last_two_pairs[1][1]:
                 st.session_state.stats['alternating_pairs'] += 1
 
+    # Define recent_pairs for alternation rate
+    recent_pairs = list(st.session_state.pair_types)[-10:] if len(st.session_state.pair_types) >= 10 else list(st.session_state.pair_types)
+    alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
+
     # Evaluate bet outcome (after 8 pairs for choppy shoes)
     pattern_scores, dominance, _, _ = analyze_patterns()
-    alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
     min_pairs = 8 if alternation_rate > 0.7 else 5
     if len(st.session_state.pair_types) >= min_pairs and current_prediction != "Hold":
         effective_bet = min(5 * st.session_state.base_amount, st.session_state.bet_amount)
