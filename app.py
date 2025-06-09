@@ -9,20 +9,33 @@ import math
 
 def initialize_session_state():
     """Initialize session state variables if not already set."""
-    if 'pair_types' not in st.session_state:
+    if 'pair_types' not in st.session_state or not isinstance(st.session_state.pair_types, deque):
         st.session_state.pair_types = deque(maxlen=100)
+    if 'results' not in st.session_state or not isinstance(st.session_state.results, deque):
         st.session_state.results = deque(maxlen=200)
+    if 'next_prediction' not in st.session_state:
         st.session_state.next_prediction = "N/A"
+    if 'base_amount' not in st.session_state:
         st.session_state.base_amount = 10.0
+    if 'bet_amount' not in st.session_state:
         st.session_state.bet_amount = 0.0
+    if 'result_tracker' not in st.session_state:
         st.session_state.result_tracker = 0.0
+    if 'profit_lock' not in st.session_state:
         st.session_state.profit_lock = 0.0
+    if 'previous_result' not in st.session_state:
         st.session_state.previous_result = None
+    if 'state_history' not in st.session_state:
         st.session_state.state_history = []
+    if 'current_dominance' not in st.session_state:
         st.session_state.current_dominance = "N/A"
+    if 'streak_type' not in st.session_state:
         st.session_state.streak_type = None
+    if 'consecutive_wins' not in st.session_state:
         st.session_state.consecutive_wins = 0
+    if 'consecutive_losses' not in st.session_state:
         st.session_state.consecutive_losses = 0
+    if 'stats' not in st.session_state or not isinstance(st.session_state.stats, dict):
         st.session_state.stats = {
             'wins': 0,
             'losses': 0,
@@ -33,36 +46,25 @@ def initialize_session_state():
             'alternating_pairs': 0,
             'bet_history': []
         }
-        st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
-        st.session_state.alerts = []
     else:
-        # Validate stats to prevent corruption
-        if not isinstance(st.session_state.stats, dict):
-            st.session_state.stats = {
-                'wins': 0,
-                'losses': 0,
-                'ties': 0,
-                'streaks': [],
-                'odd_pairs': 0,
-                'even_pairs': 0,
-                'alternating_pairs': 0,
-                'bet_history': []
-            }
-        else:
-            # Ensure all required keys exist with correct types
-            default_stats = {
-                'wins': 0,
-                'losses': 0,
-                'ties': 0,
-                'streaks': [],
-                'odd_pairs': 0,
-                'even_pairs': 0,
-                'alternating_pairs': 0,
-                'bet_history': []
-            }
-            for key, value in default_stats.items():
-                if key not in st.session_state.stats or not isinstance(st.session_state.stats[key], type(value)):
-                    st.session_state.stats[key] = value
+        # Validate stats
+        default_stats = {
+            'wins': 0,
+            'losses': 0,
+            'ties': 0,
+            'streaks': [],
+            'odd_pairs': 0,
+            'even_pairs': 0,
+            'alternating_pairs': 0,
+            'bet_history': []
+        }
+        for key, value in default_stats.items():
+            if key not in st.session_state.stats or not isinstance(st.session_state.stats[key], type(value)):
+                st.session_state.stats[key] = value
+    if 'pattern_confidence' not in st.session_state:
+        st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
+    if 'alerts' not in st.session_state:
+        st.session_state.alerts = []
 
 def set_base_amount():
     """Set the base amount from user input."""
@@ -302,7 +304,7 @@ def reset_betting():
     st.session_state.streak_type = None
     st.session_state.bet_amount = st.session_state.base_amount
 
-    pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
+    pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']] if isinstance(st.session_state.pair_types, deque) else []
     if len(pairs) >= 5:
         recent_pairs = pairs[-10:] if len(pairs) >= 10 else pairs
         odd_count = sum(1 for a, b in recent_pairs if a != b)
@@ -364,6 +366,11 @@ def reset_all():
 
 def record_result(result):
     """Record a game result and update state."""
+    # Ensure pair_types is a deque
+    if not isinstance(st.session_state.pair_types, deque):
+        st.session_state.alerts.append({"type": "warning", "message": "pair_types was invalid; reinitialized.", "id": str(uuid.uuid4())})
+        st.session_state.pair_types = deque(maxlen=100)
+
     # Ensure stats is valid
     if not isinstance(st.session_state.stats, dict):
         st.session_state.stats = {
@@ -412,7 +419,7 @@ def record_result(result):
     st.session_state.state_history.append(state)
 
     if result == 'T':
-        st.session_state.stats['ties'] = int(st.session_state.stats['ties']) + 1
+        st.session_state.stats['ties'] = int(st.session_state.stats.get('ties', 0)) + 1
         st.session_state.previous_result = result
         st.session_state.bet_amount = 0
         st.session_state.alerts.append({"type": "info", "message": "Tie recorded. No bet placed.", "id": str(uuid.uuid4())})
@@ -445,8 +452,11 @@ def record_result(result):
             if len(last_two_pairs) == 2 and last_two_pairs[0][1] != last_two_pairs[1][1]:
                 st.session_state.stats['alternating_pairs'] = int(st.session_state.stats.get('alternating_pairs', 0)) + 1
 
+    # Debug: Log pair_types
+    st.session_state.alerts.append({"type": "info", "message": f"Debug: pair_types = {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())})
     last_four_pairs = [p for p in st.session_state.pair_types[-4:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
     last_four = [p[1] for p in last_four_pairs if p[1] != 'T']
+    st.session_state.alerts.append({"type": "info", "message": f"Debug: last_four = {last_four}", "id": str(uuid.uuid4())})
     if len(last_four) >= 3 and all(r == result for r in last_four):
         st.session_state.streak_type = result
         st.session_state.stats['streaks'] = st.session_state.stats.get('streaks', []) + [len(last_four)]
@@ -524,21 +534,21 @@ def undo():
         return
 
     last_state = st.session_state.state_history.pop()
-    valid_pairs = [p for p in last_state['pair_types'] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
+    valid_pairs = [p for p in last_state.get('pair_types', []) if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
     st.session_state.pair_types = deque(valid_pairs, maxlen=100)
-    st.session_state.results = deque(last_state['results'], maxlen=200)
-    st.session_state.previous_result = last_state['previous_result']
-    st.session_state.result_tracker = last_state['result_tracker']
-    st.session_state.profit_lock = last_state['profit_lock']
-    st.session_state.bet_amount = last_state['bet_amount']
-    st.session_state.current_dominance = last_state['current_dominance']
-    st.session_state.next_prediction = last_state['next_prediction']
-    st.session_state.consecutive_wins = last_state['consecutive_wins']
-    st.session_state.consecutive_losses = last_state['consecutive_losses']
-    st.session_state.streak_type = last_state['streak_type']
+    st.session_state.results = deque(last_state.get('results', []), maxlen=200)
+    st.session_state.previous_result = last_state.get('previous_result', None)
+    st.session_state.result_tracker = last_state.get('result_tracker', 0.0)
+    st.session_state.profit_lock = last_state.get('profit_lock', 0.0)
+    st.session_state.bet_amount = last_state.get('bet_amount', 0.0)
+    st.session_state.current_dominance = last_state.get('current_dominance', "N/A")
+    st.session_state.next_prediction = last_state.get('next_prediction', "N/A")
+    st.session_state.consecutive_wins = last_state.get('consecutive_wins', 0)
+    st.session_state.consecutive_losses = last_state.get('consecutive_losses', 0)
+    st.session_state.streak_type = last_state.get('streak_type', None)
     
     # Validate stats
-    if not isinstance(last_state['stats'], dict):
+    if not isinstance(last_state.get('stats', {}), dict):
         st.session_state.stats = {
             'wins': 0,
             'losses': 0,
@@ -567,13 +577,13 @@ def undo():
             elif key in ['wins', 'losses', 'ties', 'odd_pairs', 'even_pairs', 'alternating_pairs']:
                 st.session_state.stats[key] = int(st.session_state.stats[key])
 
-    st.session_state.pattern_confidence = last_state['pattern_confidence']
+    st.session_state.pattern_confidence = last_state.get('pattern_confidence', {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0})
     st.session_state.alerts.append({"type": "success", "message": "Last action undone.", "id": str(uuid.uuid4())})
 
 def simulate_games():
     """Simulate 100 games."""
     outcomes = ['P', 'B', 'T']
-    weights = [0.446, 0.458, 0.096]
+    weights = [0.466, 0.458, 0.096]
     for _ in range(100):
         result = random.choices(outcomes, weights)[0]
         record_result(result)
@@ -589,6 +599,7 @@ def simulate_choppy_games():
         else:
             result = random.choices(outcomes, weights)[0]
         record_result(result)
+    
     st.session_state.alerts.append({"type": "success", "message": "Simulated 100 choppy games.", "id": str(uuid.uuid4())})
 
 def clear_alerts():
@@ -822,7 +833,7 @@ def main():
             st.button("Undo", on_click=undo)
 
         st.markdown('<h2>Deal History</h2>', unsafe_allow_html=True)
-        valid_pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
+        valid_pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']] if isinstance(st.session_state.pair_types, deque) else []
         if valid_pairs:
             history_data = [
                 {"Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
@@ -832,9 +843,9 @@ def main():
         else:
             st.markdown('<p class="text-gray-400">No history yet.</p>', unsafe_allow_html=True)
 
-        total_games = st.session_state.stats['wins'] + st.session_state.stats['losses']
-        win_rate = (st.session_state.stats['wins'] / total_games * 100) if total_games > 0 else 0
-        avg_streak = sum(st.session_state.stats['streaks']) / len(st.session_state.stats['streaks']) if st.session_state.stats['streaks'] else 0
+        total_games = st.session_state.stats.get('wins', 0) + st.session_state.stats.get('losses', 0)
+        win_rate = (st.session_state.stats.get('wins', 0) / total_games * 100) if total_games > 0 else 0
+        avg_streak = sum(st.session_state.stats.get('streaks', [])) / len(st.session_state.stats.get('streaks', [])) if st.session_state.stats.get('streaks', []) else 0
         recent_pairs = valid_pairs[-10:] if len(valid_pairs) >= 10 else valid_pairs
         alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
         st.markdown(f"""
@@ -843,7 +854,7 @@ def main():
                 <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
                 <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
                 <p class="text-base text-white">Alternation Rate: {alternation_rate:.2f}</p>
-                <p class="text-base text-white">Patterns: Odd: {st.session_state.stats['odd_pairs']}, Even: {st.session_state.stats['even_pairs']}, Alternating: {st.session_state.stats['alternating_pairs']}</p>
+                <p class="text-base text-white">Patterns: Odd: {st.session_state.stats.get('odd_pairs', 0)}, Even: {st.session_state.stats.get('even_pairs', 0)}, Alternating: {st.session_state.stats.get('alternating_pairs', 0)}</p>
                 <p class="text-base text-white">Streak: {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
             </div>
         """, unsafe_allow_html=True)
@@ -903,11 +914,11 @@ def main():
         """, unsafe_allow_html=True)
 
         st.markdown('<h2>Bet History</h2>', unsafe_allow_html=True)
-        if st.session_state.stats.get('bet_history'):
+        if st.session_state.stats.get('bet_history', []):
             bet_history = pd.DataFrame(st.session_state.stats['bet_history'])
             st.dataframe(bet_history, use_container_width=True, height=200)
         else:
             st.markdown('<p class="text-gray-400">No bets placed yet.</p>', unsafe_allow_html=True)
 
-if __name__ == "__main__":
+if __name__ == "__main__':
     main()
