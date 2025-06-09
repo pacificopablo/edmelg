@@ -402,11 +402,7 @@ def record_result(result):
     if st.session_state.processing:
         add_alert("warning", "Processing another action, please wait.")
         return
-    if result not in ['P', 'B', 'T']:
-        add_alert("error", f"Invalid result: {result}")
-        return
-
-    st.session_state.processing = True
+    if result not in ['P elf.session_state.processing = True
 
     try:
         if not validate_pair_types():
@@ -797,6 +793,18 @@ def main():
             text-align: center;
             min-width: 4rem;
         }
+        .next-bet-player {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .next-bet-banker {
+            background-color: #ef4444;
+            color: white;
+        }
+        .next-bet-hold {
+            background-color: #6b7280;
+            color: white;
+        }
     </style>
     """
     st.markdown(css_styles, unsafe_allow_html=True)
@@ -816,6 +824,15 @@ def main():
         with st.expander("Bet Settings", expanded=True):
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.button("Set Amount", on_click=set_base_amount, disabled=st.session_state.processing)
+        with st.expander("Record Result", expanded=True):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.button("Player (P)", on_click=lambda: record_result('P'), disabled=st.session_state.processing)
+            with col2:
+                st.button("Banker (B)", on_click=lambda: record_result('B'), disabled=st.session_state.processing)
+            with col3:
+                st.button("Tie (T)", on_click=lambda: record_result('T'), disabled=st.session_state.processing)
+            st.button("Undo Last Result", on_click=undo, disabled=st.session_state.processing)
         with st.expander("Session Actions", expanded=False):
             st.button("Reset Bet", on_click=reset_betting, disabled=st.session_state.processing)
             st.button("Reset Session", on_click=reset_all, disabled=st.session_state.processing)
@@ -838,4 +855,100 @@ def main():
                     <p class="text-sm font-semibold text-gray-400">Profit Locked</p>
                     <p class="text-xl font-bold text-white">${st.session_state.profit_lock:.2f}</p>
                 </div>
-            """, unsafe_allow_html=Tru
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+                <div class="card">
+                    <p class="text-sm font-semibold text-gray-400">Next Bet</p>
+                    <div class="next-bet next-bet-{'player' if st.session_state.next_prediction == 'Player' else 'banker' if st.session_state.next_prediction == 'Banker' else 'hold'}">
+                        {st.session_state.next_prediction} ${st.session_state.bet_amount:.2f}
+                    </div>
+                </div>
+                <div class="card">
+                    <p class="text-sm font-semibold text-gray-400">Dominant Pattern</p>
+                    <p class="text-xl font-bold text-white">{st.session_state.current_dominance}</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown("<h2>Result History</h2>", unsafe_allow_html=True)
+        if st.session_state.results:
+            result_html = '<div class="result-history">'
+            for result in list(st.session_state.results)[-20:]:
+                result_class = {'P': 'result-p', 'B': 'result-b', 'T': 'result-t'}[result]
+                result_label = {'P': 'Player', 'B': 'Banker', 'T': 'Tie'}[result]
+                result_html += f'<div class="result-item {result_class}" title="{result_label}">{result}</div>'
+            result_html += '</div>'
+            st.markdown(result_html, unsafe_allow_html=True)
+        else:
+            st.markdown("<p>No results recorded yet.</p>", unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown("<h2>Pattern Confidence</h2>", unsafe_allow_html=True)
+        confidence_data = pd.DataFrame({
+            'Pattern': list(st.session_state.pattern_confidence.keys()),
+            'Confidence': [f"{v:.2%}" for v in st.session_state.pattern_confidence.values()]
+        })
+        st.dataframe(confidence_data, use_container_width=True, hide_index=True)
+
+        # Generate a bar chart for pattern confidence
+        chart_data = {
+            "type": "bar",
+            "data": {
+                "labels": list(st.session_state.pattern_confidence.keys()),
+                "datasets": [{
+                    "label": "Pattern Confidence",
+                    "data": [v * 100 for v in st.session_state.pattern_confidence.values()],
+                    "backgroundColor": [
+                        "#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#f97316"
+                    ],
+                    "borderColor": [
+                        "#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed", "#db2777", "#ea580c"
+                    ],
+                    "borderWidth": 1
+                }]
+            },
+            "options": {
+                "scales": {
+                    "y": {
+                        "beginAtZero": True,
+                        "title": {"display": True, "text": "Confidence (%)"}
+                    },
+                    "x": {
+                        "title": {"display": True, "text": "Pattern"}
+                    }
+                },
+                "plugins": {
+                    "legend": {"display": False}
+                }
+            }
+        }
+        st.markdown("### Confidence Distribution")
+        st.chart(chart_data)
+
+    with st.container():
+        st.markdown("<h2>Bet History</h2>", unsafe_allow_html=True)
+        if st.session_state.stats['bet_history']:
+            bet_history = pd.DataFrame(st.session_state.stats['bet_history'])
+            bet_history = bet_history[['prediction', 'result', 'bet_amount', 'outcome']].tail(10)
+            st.dataframe(bet_history, use_container_width=True)
+        else:
+            st.markdown("<p>No bets placed yet.</p>", unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown("<h2>Summary Statistics</h2>", unsafe_allow_html=True)
+        stats_data = {
+            'Metric': ['Wins', 'Losses', 'Ties', 'Odd Pairs', 'Even Pairs', 'Alternating Pairs'],
+            'Value': [
+                st.session_state.stats['wins'],
+                st.session_state.stats['losses'],
+                st.session_state.stats['ties'],
+                st.session_state.stats['odd_pairs'],
+                st.session_state.stats['even_pairs'],
+                st.session_state.stats['alternating_pairs']
+            ]
+        }
+        st.dataframe(pd.DataFrame(stats_data), use_container_width=True, hide_index=True)
+
+if __name__ == "__main__":
+    main()
