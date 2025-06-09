@@ -11,7 +11,7 @@ def initialize_session_state():
         st.session_state.results = deque(maxlen=200)  # Store raw results
         st.session_state.next_prediction = "N/A"
         st.session_state.base_amount = 10.0
-        st.session_state.bet_amount = st.session_state.base_amount
+        st.session_state.bet_amount = 0.0  # Initialize to 0 since no prediction yet
         st.session_state.result_tracker = 0.0
         st.session_state.profit_lock = 0.0
         st.session_state.previous_result = None
@@ -39,7 +39,8 @@ def set_base_amount():
         amount = float(st.session_state.base_amount_input)
         if 1 <= amount <= 100:
             st.session_state.base_amount = amount
-            st.session_state.bet_amount = st.session_state.base_amount
+            # Set bet_amount based on prediction
+            st.session_state.bet_amount = st.session_state.base_amount if st.session_state.next_prediction in ["Player", "Banker"] else 0
             st.session_state.alerts.append({"type": "success", "message": "Base amount updated successfully.", "id": str(uuid.uuid4())})
         else:
             st.session_state.alerts.append({"type": "error", "message": "Base amount must be between $1 and $100.", "id": str(uuid.uuid4())})
@@ -51,6 +52,7 @@ def analyze_patterns(window_sizes=[5, 10, 20]):
     results = list(st.session_state.results)
     pairs = list(st.session_state.pair_types)
     if len(pairs) < 2:
+        st.session_state.bet_amount = 0
         return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0}, "N/A", "N/A", None
 
     pattern_scores = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0}
@@ -102,29 +104,36 @@ def analyze_patterns(window_sizes=[5, 10, 20]):
     if confidence < 0.6 or len(pairs) < 5:  # Dynamic threshold
         prediction = "Hold"
         dominance = "N/A"
+        st.session_state.bet_amount = 0
     elif dominant_pattern == "Odd":
         prediction = "Player" if last_result == 'B' else "Banker"
         dominance = "Odd"
+        st.session_state.bet_amount = st.session_state.base_amount
     elif dominant_pattern == "Even":
         prediction = "Player" if last_result == 'P' else "Banker"
         dominance = "Even"
+        st.session_state.bet_amount = st.session_state.base_amount
     elif dominant_pattern == "Alternating":
         prediction = "Player" if last_result == 'B' else "Banker"
         dominance = "Alternating"
+        st.session_state.bet_amount = st.session_state.base_amount
     else:  # Streak
         last_results = [r for r in results[-4:] if r != 'T']
         if len(last_results) >= 2 and all(r == last_results[-1] for r in last_results[-2:]):
             streak_type = last_results[-1]
             prediction = "Player" if streak_type == 'P' else "Banker"
             dominance = f"Streak ({streak_type})"
+            st.session_state.bet_amount = st.session_state.base_amount
         else:
             prediction = "Hold"
             dominance = "N/A"
+            st.session_state.bet_amount = 0
 
     # Adjust for shoe position
     if len(results) < 20:
         prediction = "Hold"  # Conservative early in shoe
         dominance = "N/A"
+        st.session_state.bet_amount = 0
 
     return pattern_scores, dominance, prediction, streak_type
 
@@ -134,7 +143,6 @@ def reset_betting():
         st.session_state.alerts.append({"type": "warning", "message": "Stop-loss reached. Resetting to resume betting.", "id": str(uuid.uuid4())})
     if st.session_state.result_tracker >= 0:
         st.session_state.result_tracker = 0.0
-    st.session_state.bet_amount = st.session_state.base_amount
     st.session_state.consecutive_wins = 0
     st.session_state.consecutive_losses = 0
     st.session_state.streak_type = None
@@ -154,7 +162,7 @@ def reset_all():
     st.session_state.results = deque(maxlen=200)
     st.session_state.result_tracker = 0.0
     st.session_state.profit_lock = 0.0
-    st.session_state.bet_amount = st.session_state.base_amount
+    st.session_state.bet_amount = 0.0  # Initialize to 0 since no prediction
     st.session_state.base_amount = 10.0
     st.session_state.next_prediction = "N/A"
     st.session_state.previous_result = None
@@ -165,7 +173,7 @@ def reset_all():
     st.session_state.streak_type = None
     st.session_state.stats = {
         'wins': 0,
-        'losses': 0,
+        'losts': 0,
         'ties': 0,
         'streaks': [],
         'odd_pairs': 0,
@@ -203,6 +211,7 @@ def record_result(result):
     if result == 'T':
         st.session_state.stats['ties'] += 1
         st.session_state.previous_result = result
+        st.session_state.bet_amount = 0  # No bet on Tie
         st.session_state.alerts.append({"type": "info", "message": "Tie recorded. No bet placed.", "id": str(uuid.uuid4())})
         return
 
@@ -210,7 +219,7 @@ def record_result(result):
     if st.session_state.previous_result is None:
         st.session_state.previous_result = result
         st.session_state.next_prediction = "N/A"
-        st.session_state.bet_amount = st.session_state.base_amount
+        st.session_state.bet_amount = 0  # No bet until enough results
         st.session_state.alerts.append({"type": "info", "message": "Waiting for more results to start betting.", "id": str(uuid.uuid4())})
         return
 
@@ -291,11 +300,13 @@ def record_result(result):
     st.session_state.current_dominance = dominance
     st.session_state.next_prediction = prediction
     st.session_state.streak_type = streak_type
-    st.session_state.bet_amount = 0 if prediction == "Hold" else st.session_state.bet_amount
     st.session_state.previous_result = result
 
-    if len(st.session_state.pair_types) < 5:
-        st.session_state.alerts.append({"type": "info", "message": f"Result recorded. Need {5 - len(st.session_state.pair_types)} more results to start betting.", "id": str(uuid.uuid4())})
+    # Ensure bet_amount is 0 if not enough pairs or prediction is Hold
+    if len(st.session_state.pair_types) < 5 or prediction == "Hold":
+        st.session_state.bet_amount = 0
+        if len(st.session_state.pair_types) < 5:
+            st.session_state.alerts.append({"type": "info", "message": f"Result recorded. Need {5 - len(st.session_state.pair_types)} more results to start betting.", "id": str(uuid.uuid4())})
 
 def undo():
     """Undo the last action."""
