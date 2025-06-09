@@ -77,6 +77,15 @@ def initialize_session_state():
         st.session_state.alerts = []
     if 'processing' not in st.session_state:
         st.session_state.processing = False
+    # Log initial state types for debugging
+    st.session_state.alerts.append({
+        "type": "info",
+        "message": f"Initialized session state: pair_types={type(st.session_state.pair_types).__name__}, "
+                   f"results={type(st.session_state.results).__name__}, "
+                   f"state_history={type(st.session_state.state_history).__name__}, "
+                   f"stats={type(st.session_state.stats).__name__}",
+        "id": str(uuid.uuid4())
+    })
 
 def validate_pair_types():
     """Validate and fix pair_types if invalid."""
@@ -387,7 +396,7 @@ def reset_all():
     st.session_state.profit_lock = 0.0
     st.session_state.bet_amount = 0.0
     st.session_state.base_amount = 10.0
-    st.session_state.next_prediction = "N/A"
+    st.session_state.next_prediction = None
     st.session_state.previous_result = None
     st.session_state.state_history = []
     st.session_state.current_dominance = "N/A"
@@ -406,7 +415,7 @@ def reset_all():
     }
     st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
     st.session_state.processing = False
-    st.session_state.alerts.append({"type": "success", "message": "All session data reset, profit lock reset.", "id": str(uuid.uuid4())})
+    st.session_state.alerts.append({"type": "success", "message": "All session data reset successfully.", "id": str(uuid.uuid4())})
 
 def record_result(result):
     """Record a game result and update state."""
@@ -419,7 +428,7 @@ def record_result(result):
         if not validate_pair_types():
             st.session_state.alerts.append({"type": "info", "message": f"pair_types validated and cleaned in record_result. Initial state: {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())})
 
-        st.session_state.alerts.append({"type": "info", "message": f"Debug: pair_types before = {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "info", "message": f"DEBUG: pair_types before = {list(st.session_state.pair_types)}, type: {type(st.session_state.pair_types).__name__}", "id": str(uuid.uuid4())})
 
         if not isinstance(st.session_state.stats, dict):
             st.session_state.stats = {
@@ -450,7 +459,7 @@ def record_result(result):
         current_prediction = st.session_state.next_prediction
         st.session_state.results.append(result)
 
-        # Validate pair_types before saving to state_history
+        # Validate state before saving to state_history
         valid_pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
         state = {
             'pair_types': valid_pairs,
@@ -468,13 +477,13 @@ def record_result(result):
             'pattern_confidence': st.session_state.pattern_confidence.copy()
         }
         st.session_state.state_history.append(state)
-        st.session_state.alerts.append({"type": "info", "message": f"Debug: state_history length = {len(st.session_state.state_history)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "info", "message": f"DEBUG: state_history length = {len(st.session_state.state_history)}", "id": str(uuid.uuid4())})
 
         if result == 'T':
             st.session_state.stats['ties'] = int(st.session_state.stats.get('ties', 0)) + 1
             st.session_state.previous_result = result
             st.session_state.bet_amount = 0
-            st.session_state.alerts.append({"type": "info", "message": "Tie recorded. No bet placed.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "info", "message": "Tie recorded!", "id": str(uuid.uuid4())}))
             pattern_scores, dominance, prediction, streak_type = analyze_patterns()
             st.session_state.pattern_confidence = pattern_scores
             st.session_state.current_dominance = dominance
@@ -487,7 +496,7 @@ def record_result(result):
             st.session_state.previous_result = result
             st.session_state.next_prediction = "N/A"
             st.session_state.bet_amount = 0
-            st.session_state.alerts.append({"type": "info", "message": "Waiting for more results to start betting.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "info", "message": "Waiting for more results to start betting.", "id": str(uuid.uuid4())}))
             pattern_scores, dominance, prediction, streak_type = analyze_patterns()
             st.session_state.pattern_confidence = pattern_scores
             st.session_state.current_dominance = dominance
@@ -501,27 +510,29 @@ def record_result(result):
             try:
                 st.session_state.pair_types.append(pair)
                 pair_type = "Even" if pair[0] == pair[1] else "Odd"
-                st.session_state.stats['odd_pairs' if pair_type == "Odd" else 'even_pairs'] = int(st.session_state.stats.get('odd_pairs' if pair_type == "Odd" else 'even_pairs', 0)) + 1
+                st.session_state.stats['odd_pairs' if pair_type == 'Odd' else 'even_pairs'] = int(
+                    st.session_state.stats.get('odd_pairs' if pair_type == 'Odd' else 'even_pairs', 0)) + 1
                 if len(st.session_state.pair_types) >= 2:
                     last_two_pairs = [p for p in st.session_state.pair_types[-2:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
                     if len(last_two_pairs) == 2 and last_two_pairs[0][1] != last_two_pairs[1][1]:
-                        st.session_state.stats['alternating_pairs'] = int(st.session_state.stats.get('alternating_pairs', 0)) + 1
+                        st.session_state.stats.setdefault('alternating_pairs', 0) += 1
             except Exception as e:
-                st.session_state.alerts.append({"type": "error", "message": f"Error appending pair {pair}: {str(e)}", "id": str(uuid.uuid4())})
+                st.session_state.alerts.append({"type": "error", "message": f"Error appending pair {pair}: {str(e)}", "id": str(uuid.uuid4())}))
                 validate_pair_types()
 
         try:
+            st.session_state.alerts.append({"type": "info", "message": f"DEBUG: About to access pair_types[-4:], current state: {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())}))
             last_four_pairs = [p for p in st.session_state.pair_types[-4:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
             last_four = [p[1] for p in last_four_pairs if p[1] != 'T']
-            st.session_state.alerts.append({"type": "info", "message": f"Debug: pair_types after = {list(st.session_state.pair_types)}, last_four = {last_four}", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "info", "message": f"DEBUG: pair_types after = {list(st.session_state.pair_types)}, last_four = {last_four}", "id": str(uuid.uuid4())}))
         except Exception as e:
-            st.session_state.alerts.append({"type": "error", "message": f"Error processing last_four_pairs: {str(e)}", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "error", "message": f"Error processing last four pairs: {str(e)}", "id": str(uuid.uuid4())}))
             last_four_pairs = []
             last_four = []
 
         if len(last_four) >= 3 and all(r == result for r in last_four):
             st.session_state.streak_type = result
-            st.session_state.stats['streaks'] = st.session_state.stats.get('streaks', []) + [len(last_four)]
+            st.session_state.stats['streaks'].append(len(last_four))
         else:
             st.session_state.streak_type = None
 
@@ -531,40 +542,40 @@ def record_result(result):
             if current_prediction == "Player" and result == 'P':
                 st.session_state.result_tracker += effective_bet
                 st.session_state.stats['wins'] = int(st.session_state.stats.get('wins', 0)) + 1
-                st.session_state.consecutive_wins = int(st.session_state.consecutive_wins) + 1
+                st.session_state.consecutive_wins += 1
                 st.session_state.consecutive_losses = 0
                 st.session_state.bet_amount = st.session_state.base_amount
                 outcome = f"Won ${effective_bet:.2f}"
-                st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet:.2f}", "id": str(uuid.uuid4())})
+                st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet:.2f}", "id": str(uuid.uuid4())}))
             elif current_prediction == "Banker" and result == 'B':
                 st.session_state.result_tracker += effective_bet * 0.95
                 st.session_state.stats['wins'] = int(st.session_state.stats.get('wins', 0)) + 1
-                st.session_state.consecutive_wins = int(st.session_state.consecutive_wins) + 1
+                st.session_state.consecutive_wins += 1
                 st.session_state.consecutive_losses = 0
                 st.session_state.bet_amount = st.session_state.base_amount
                 outcome = f"Won ${effective_bet * 0.95:.2f}"
-                st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet * 0.95:.2f}", "id": str(uuid.uuid4())})
+                st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet * 0.95:.2f}", "id": str(uuid.uuid4())}))
             elif current_prediction in ["Player", "Banker"]:
                 st.session_state.result_tracker -= effective_bet
                 st.session_state.stats['losses'] = int(st.session_state.stats.get('losses', 0)) + 1
-                st.session_state.consecutive_losses = int(st.session_state.consecutive_losses) + 1
+                st.session_state.consecutive_losses += 1
                 st.session_state.consecutive_wins = 0
                 st.session_state.bet_amount = min(3 * st.session_state.base_amount, math.ceil((st.session_state.bet_amount + 0.5 * st.session_state.base_amount) / st.session_state.base_amount) * st.session_state.base_amount)
                 outcome = f"Lost ${effective_bet:.2f}"
-                st.session_state.alerts.append({"type": "error", "message": f"Bet lost! -${effective_bet:.2f}", "id": str(uuid.uuid4())})
+                st.session_state.alerts.append({"type": "error", "message": f"Bet lost! -${effective_bet:.2f}", "id": str(uuid.uuid4())}))
 
-            st.session_state.stats['bet_history'] = st.session_state.stats.get('bet_history', []) + [{
-                'prediction': current_prediction,
-                'result': result,
-                'bet_amount': effective_bet,
-                'outcome': outcome
-            }]
+        st.session_state.stats['bet_history'].append({
+            'prediction': current_prediction,
+            'result': result,
+            'bet_amount': effective_bet,
+            'outcome': outcome
+        })
 
         if st.session_state.result_tracker >= 3 * st.session_state.base_amount:
             st.session_state.profit_lock += st.session_state.result_tracker
             st.session_state.result_tracker = 0.0
             st.session_state.bet_amount = st.session_state.base_amount
-            st.session_state.alerts.append({"type": "info", "message": f"Profit of ${st.session_state.profit_lock:.2f} locked! Bankroll reset.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "info", "message": f"Profit locked at ${st.session_state.profit_lock:.2f}! Bankroll reset.", "id": str(uuid.uuid4())}))
             pattern_scores, dominance, prediction, streak_type = analyze_patterns()
             st.session_state.pattern_confidence = pattern_scores
             st.session_state.current_dominance = dominance
@@ -573,7 +584,7 @@ def record_result(result):
             st.session_state.processing = False
             return
         elif st.session_state.result_tracker <= -10 * st.session_state.base_amount:
-            st.session_state.alerts.append({"type": "warning", "message": "Loss limit reached. Resetting to resume betting.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "warning", "message": "Loss limit reached. Resetting to resume betting.", "id": str(uuid.uuid4())}))
             st.session_state.next_prediction = "Hold"
             st.session_state.bet_amount = 0.0
             pattern_scores, dominance, prediction, streak_type = analyze_patterns()
@@ -593,29 +604,29 @@ def record_result(result):
 
     except Exception as e:
         st.error(f"Critical error in record_result: {str(e)}")
-        st.session_state.alerts.append({"type": "error", "message": f"Critical error: {str(e)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "error", "message": f"Critical error: {str(e)}", "id": str(uuid.uuid4())}))
     finally:
         st.session_state.processing = False
 
 def undo():
     """Undo the last action."""
     if st.session_state.processing:
-        st.session_state.alerts.append({"type": "warning", "message": "Processing another action, please wait.", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "warning", "message": "Processing another action, please wait.", "id": str(uuid.uuid4())}))
         return
     st.session_state.processing = True
 
     try:
         if not st.session_state.state_history:
-            st.session_state.alerts.append({"type": "error", "message": "No actions to undo.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "error", "message": "No actions to undo.", "id": str(uuid.uuid4())}))
             st.session_state.processing = False
             return
 
-        st.session_state.alerts.append({"type": "info", "message": f"Debug: Undoing state, history length = {len(st.session_state.state_history)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "info", "message": f"Debug: Undoing state, history length = {len(st.session_state.state_history)}", "id": str(uuid.uuid4())}))
 
         last_state = st.session_state.state_history.pop()
         valid_pairs = [p for p in last_state.get('pair_types', []) if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
         if len(valid_pairs) < len(last_state.get('pair_types', [])):
-            st.session_state.alerts.append({"type": "warning", "message": f"Invalid pairs found in state history; cleaned. Restored pairs: {valid_pairs}", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "warning", "message": f"Invalid pairs found in state history; cleaned. Restored pairs: {valid_pairs}", "id": str(uuid.uuid4())}))
 
         st.session_state.pair_types = deque(valid_pairs, maxlen=100)
         st.session_state.results = deque(last_state.get('results', []), maxlen=200)
@@ -629,7 +640,7 @@ def undo():
         st.session_state.consecutive_losses = last_state.get('consecutive_losses', 0)
         st.session_state.streak_type = last_state.get('streak_type', None)
 
-        st.session_state.alerts.append({"type": "info", "message": f"Debug: Restored pair_types = {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "info", "message": f"Debug: Restored pair_types: {list(st.session_state.pair_types)}", "id": str(uuid.uuid4())}))
 
         if not isinstance(last_state.get('stats', {}), dict):
             st.session_state.stats = {
@@ -637,9 +648,9 @@ def undo():
                 'losses': 0,
                 'ties': 0,
                 'streaks': [],
-                'odd_pairs': 0,
-                'even_pairs': 0,
-                'alternating_pairs': 0,
+                'odd_pairs': [],
+                'even_pairs': [],
+                'alternating_pairs': [],
                 'bet_history': []
             }
         else:
@@ -649,9 +660,9 @@ def undo():
                 'losses': 0,
                 'ties': 0,
                 'streaks': [],
-                'odd_pairs': 0,
-                'even_pairs': 0,
-                'alternating_pairs': 0,
+                'odd_pairs': [],
+                'even_pairs': [],
+                'alternating_pairs': [],
                 'bet_history': []
             }
             for key, value in default_stats.items():
@@ -677,31 +688,31 @@ def simulate_games():
         for _ in range(100):
             result = random.choices(outcomes, weights)[0]
             record_result(result)
-        st.session_state.alerts.append({"type": "success", "message": "Simulated 100 games. Check stats and bet history for results.", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "success", "message": "Simulated 100 games. Check stats and bet history for results.", "id": str(uuid.uuid4())}))
 
     except Exception as e:
         st.error(f"Failed to simulate 100 games: {str(e)}")
-        st.session_state.alerts.append({"type": "error", "message": f"Simulation error: {str(e)}", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "error", "message": f"Error simulating games: {str(e)}", "id": str(uuid.uuid4())}))
 
 def simulate_choppy_games():
-    """Simulate 100 games with choppy shoe characteristics."""
+    """Simulate 90 games with choppy shoe characteristics."""
     if st.session_state.processing:
         st.session_state.alerts.append({"type": "warning", "message": "Processing another action, please wait.", "id": str(uuid.uuid4())}))
         return
     try:
         outcomes = ['P', 'B', 'T']
         weights = [0.48, 0.48, 0.04]
-        for _ in range(100):
-            if random.random() < 0.80 and st.session_state.previous_result:
-                result = 'B' if st.session_state.previous_result == 'P' else 'P'
+        for _ in range(90):
+            if random.random() < 0.8 and st.session_state.previous_result:
+                result = 'P' if st.session_state.previous_result == 'B' else 'B'
             else:
                 result = random.choices(outcomes, weights)[0]
             record_result(result)
-        st.session_state.alerts.append({"type": "success", "message": "Simulated 100 choppy games.", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "success", "message": "Simulated 90 choppy games.", "id": str(uuid.uuid4())}))
 
     except Exception as e:
-        st.error(f"Failed to simulate 100 choppy games: {str(e)}")
-        st.session_state.alerts.append({"type": "error", "message": f"Simulation error: {str(e)}", "id": str(uuid.uuid4())})
+        st.error(f"Failed to simulate 90 choppy games: {str(e)}")
+        st.session_state.alerts.append({"type": "error", "message": f"Error simulating choppy games: {str(e)}", "id": str(uuid.uuid4())}))
 
 def clear_alerts():
     """Clear all alerts."""
@@ -719,85 +730,85 @@ def main():
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
         body, .stApp {
-            background-color: #1F2528;
+            background-color: #1f2528;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #E5E7EB;
+            color: #e5e7eb;
         }
         .card {
-            background-color: #2C2F33;
+            background-color: #2c2f33;
             border-radius: 0.75rem;
             padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 1rem;
         }
         .stButton>button {
-            background-color: #6366F1;
+            background-color: #6366f1;
             color: white;
             border-radius: 0.5rem;
-            padding: 0.75rem 1.5rem;
+            padding: 0.75rem 1rem;
             font-weight: 600;
             transition: background-color 0.2s;
             width: 100%;
         }
         .stButton>button:hover {
-            background-color: #4F46E5;
+            background-color: #4f46e5;
         }
         .stNumberInput input {
-            background-color: #23272A;
+            background-color: #23272a;
             color: white;
-            border: 1px solid #4B5563;
-            border-radius: 0.5rem;
+            border: 1px solid #4b5563;
+            border-radius: 0.25rem;
             padding: 0.5rem;
         }
-        .stDataFrame table {
-            background-color: #23272A;
+        .stDataFrame {
+            background-color: #23272a;
             color: white;
             border-collapse: collapse;
         }
         .stDataFrame th {
             background-color: #374151;
             color: white;
-            font-weight: 600;
+            font-weight: bold;
             padding: 0.75rem;
         }
         .stDataFrame td {
             padding: 0.75rem;
-            border-bottom: 1px solid #4B5563;
+            border-bottom: 1px solid #4b5563;
         }
         .stDataFrame tr:nth-child(even) {
-            background-color: #2D3748;
+            background-color: #2d3748;
         }
         h1 {
             font-size: 2.25rem;
-            font-weight: 700;
-            color: #F3F4F6;
+            font-weight: bold;
+            color: #f3f4f6;
             margin-bottom: 1rem;
         }
         h2 {
             font-size: 1.5rem;
-            font-weight: 600;
-            color: #D1D5DB;
+            font-weight: bold;
+            color: #d1d5db;
             margin-bottom: 0.75rem;
         }
         .alert {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            margin-bottom: 0.75rem;
         }
         .alert-success {
-            background-color: #10B981;
+            background-color: #10b981;
             color: white;
         }
         .alert-error {
-            background-color: #EF4444;
+            background-color: #ef4444;
             color: white;
         }
         .alert-info {
-            background-color: #3B82F6;
+            background-color: #3b82f6;
             color: white;
         }
         .alert-warning {
-            background-color: #F59E0B;
+            background-color: #f59e0b;
             color: white;
         }
         .sidebar .stButton>button {
@@ -807,7 +818,6 @@ def main():
             display: flex;
             flex-wrap: nowrap;
             overflow-x: auto;
-            scroll-behavior: smooth;
             gap: 0.25rem;
             padding: 0.5rem;
             max-width: 100%;
@@ -823,15 +833,15 @@ def main():
             color: white;
         }
         .result-p {
-            background-color: #3B82F6;
+            background-color: #3b82f6;
         }
         .result-b {
-            background-color: #EF4444;
+            background-color: #ef4444;
         }
         .result-t {
-            background-color: #10B981;
+            background-color: #10b981;
         }
-        .next-bet-badge {
+        .next-bet {
             display: inline-block;
             padding: 0.25rem 0.75rem;
             border-radius: 0.25rem;
@@ -846,30 +856,28 @@ def main():
 
     alert_container = st.container()
     with alert_container:
-        for alert in st.session_state.alerts[-3:]:
-            alert_class = f"alert alert-{alert['type'].lower()}"
+        for alert in st.session_state.alerts[-5:]:
+            alert_class = f"alert alert-${alert['type'].lower()}"
             st.markdown(f'<div class="{alert_class}">{alert["message"]}</div>', unsafe_allow_html=True)
         if st.session_state.alerts:
-            if st.button("Clear Alerts", disabled=st.session_state.processing):
-                clear_alerts()
+            st.button("Clear Alerts", on_click=clear_alerts, disabled=st.session_state.processing)
 
-    st.markdown('<h1>Baccarat Predictor with Balanced Progression</h1>', unsafe_allow_html=True)
+    st.markdown("<h1>Baccarat Predictor</h1>", unsafe_allow_html=True)
 
     with st.sidebar:
-        st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Controls</h2>", unsafe_allow_html=True)
         with st.expander("Bet Settings", expanded=True):
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
-            st.button("Set Amount", on_click=set_base_amount, disabled=st.session_state.processing)
-
-        with st.expander("Session Actions"):
-            st.button("Reset Bet", on_click=reset_betting, disabled=st.session_state.processing)
-            st.button("Reset Session", on_click=reset_all, disabled=st.session_state.processing)
+            st.button("Set Amount", on_click=lambda: set_base_amount(), disabled=st.session_state.processing)
+        with st.expander("Session Actions", expanded=False):
+            st.button("Reset Bet", on_click=lambda: reset_betting(), disabled=st.session_state.processing)
+            st.button("Reset Session", on_click=lambda: reset_all(), disabled=st.session_state.processing)
             st.button("New Session", on_click=lambda: [reset_all(), st.session_state.alerts.append({"type": "success", "message": "New session started.", "id": str(uuid.uuid4())})], disabled=st.session_state.processing)
-            st.button("Simulate 100 Games", on_click=simulate_games, disabled=st.session_state.processing)
-            st.button("Simulate 100 Choppy Games", on_click=simulate_choppy_games, disabled=st.session_state.processing)
+            st.button("Simulate 100 Games", on_click=lambda: simulate_games(), disabled=st.session_state.processing)
+            st.button("Simulate 90 Choppy Games", on_click=lambda: simulate_choppy_games(), disabled=st.session_state.processing)
 
     with st.container():
-        st.markdown('<h2>Betting Overview</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Statistics</h2>", unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
             st.markdown(f"""
@@ -878,16 +886,16 @@ def main():
                     <p class="text-xl font-bold text-white">${st.session_state.result_tracker:.2f}</p>
                 </div>
                 <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Profit Lock</p>
+                    <p class="text-sm font-semibold text-gray-400">Profit Locked</p>
                     <p class="text-xl font-bold text-white">${st.session_state.profit_lock:.2f}</p>
                 </div>
             """, unsafe_allow_html=True)
         with col2:
             badge_class = (
-                "next-bet-badge bg-blue-500" if st.session_state.next_prediction == "Player" else
-                "next-bet-badge bg-red-500" if st.session_state.next_prediction == "Banker" else
-                "next-bet-badge bg-yellow-500" if st.session_state.next_prediction == "Hold" else
-                "next-bet-badge bg-gray-500"
+                "next-bet badge bg-blue-500" if st.session_state.next_prediction == "Player" else
+                "next-bet badge bg-red-500" if st.session_state.next_prediction == "Banker" else
+                "next-bet badge bg-yellow-500" if st.session_state.next_prediction == "Hold" else
+                "next-bet badge bg-gray-500"
             )
             st.markdown(f"""
                 <div class="card">
@@ -900,7 +908,7 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
 
-        st.markdown('<h2>Result History</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Result History</h2>", unsafe_allow_html=True)
         if st.session_state.results:
             recent_results = list(st.session_state.results)[-20:]
             result_items = [
@@ -910,24 +918,24 @@ def main():
             result_html = "".join(result_items)
             st.markdown(f"""
                 <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Last 20 Results (P: Player, B: Banker, T: Tie)</p>
+                    <p class="text-sm font-semibold text-gray-400">Recent Results (P: Player, B: Banker, T: Tie)</p>
                     <div class="result-history" id="resultHistory">
                         {result_html}
                     </div>
                 </div>
                 <script>
-                    document.addEventListener('DOMContentLoaded', function() {{
+                    document.addEventListener('DOMContentLoaded', () => {{
                         const resultDiv = document.getElementById('resultHistory');
-                        if (resultDiv) {{
+                        if (resultDiv) {
                             resultDiv.scrollLeft = resultDiv.scrollWidth;
-                        }}
-                    }});
+                        }
+                    });
                 </script>
             """, unsafe_allow_html=True)
         else:
             st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
 
-        st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Record Result</h2>", unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             st.button("Player", on_click=lambda: record_result('P'), disabled=st.session_state.processing)
@@ -936,94 +944,97 @@ def main():
         with col3:
             st.button("Tie", on_click=lambda: record_result('T'), disabled=st.session_state.processing)
         with col4:
-            st.button("Undo", on_click=undo, disabled=st.session_state.processing)
+            st.button("Undo", on_click=lambda: undo(), disabled=st.session_state.processing)
 
-        st.markdown('<h2>Deal History</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Deal History</h2>", unsafe_allow_html=True)
         if not validate_pair_types():
-            st.session_state.alerts.append({"type": "info", "message": "pair_types validated and cleaned in deal history.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "info", "message": "Invalid pair_types detected in deal history.", "id": str(uuid.uuid4())}))
         valid_pairs = [p for p in st.session_state.pair_types if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
         if valid_pairs:
             history_data = [
-                {"Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
+                {"Pair": f"{pair[0]}{pair[1]}", "Type": "Odd" if pair[0] != pair[1] else "Even"}
                 for pair in valid_pairs
             ]
-            st.dataframe(pd.DataFrame(history_data), use_container_width=True, height=300)
+            history_df = pd.DataFrame(history_data)
+            st.dataframe(history_df, use_container_width=True, height=300)
         else:
-            st.markdown('<p class="text-gray-400">No history yet.</p>', unsafe_allow_html=True)
+            st.markdown('<p class="text-gray-400">No deal history available.</p>', unsafe_allow_html=True)
 
         total_games = st.session_state.stats.get('wins', 0) + st.session_state.stats.get('losses', 0)
-        win_rate = (st.session_state.stats.get('wins', 0) / total_games * 100) if total_games > 0 else 0
-        avg_streak = sum(st.session_state.stats.get('streaks', [])) / len(st.session_state.stats.get('streaks', [])) if len(st.session_state.stats.get('streaks', [])) > 0 else 0
-        recent_pairs = valid_pairs[-10:] if len(valid_pairs) >= 10 else valid_pairs
+        win_rate = (st.session_state.stats.get('wins', 0) / total_games * 100) if total_games > 0 else 0.0
+        avg_streak = sum(st.session_state.stats.get('matches', [])) / len(st.session_state.stats.get('streaks', [])) if len(st.session_state.stats.get('streaks', [])) > 0 else 0
+        recent_pairs = valid_pairs[-10:10] if len(valid_pairs) >= 10 else valid_pairs
         alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
         st.markdown(f"""
             <div class="card">
                 <p class="text-sm font-semibold text-gray-400">Statistics</p>
-                <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
-                <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
-                <p class="text-base text-white">Alternation Rate: {alternation_rate:.2f}</p>
-                <p class="text-base text-white">Patterns: Odd: {st.session_state.stats.get('odd_pairs', 0)}, Even: {st.session_state.stats.get('even_pairs', 0)}, Alternating: {st.session_state.stats.get('alternating_pairs', 0)}</p>
-                <p class="text-base text-white">Streak: {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
+                <p class="text-base">Win Rate: {win_rate:.1f}%</p>
+                <p class="text-base">Average Streak: {avg_streak:.1f}</p>
+                <p class="text-base">Alternation Rate: {alternation_rate:.2f}</p>
+                <p class="text-base">Patterns: Odd: {st.session_state.stats.get('odd_pairs', 0)}, Even: {st.session_state.stats.get('even_pairs', 0)}, Alternating: {st.session_state.stats.get('alternating_pairs', 0)})</p>
+                <p class="text-base">Streak: {st.session_state.streak_type or 'None'}</p>
             </div>
-            """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True))
 
-        st.markdown('<h2>Pattern Confidence</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Pattern Confidence</h2>", unsafe_allow_html=True)
         chart_config = {
-            "type": "line",
+            "type": "pie",
             "data": {
                 "labels": ["Odd", "Even", "Alternating", "Streak", "Choppy", "Markov", "Bayesian"],
                 "datasets": [
                     {
                         "label": "Pattern Confidence",
                         "data": [
-                            st.session_state.pattern_confidence.get("Odd", 0.0),
-                            st.session_state.pattern_confidence.get("Even", 0.0),
-                            st.session_state.pattern_confidence.get("Alternating", 0.0),
-                            st.session_state.pattern_confidence.get("Streak", 0.0),
-                            st.session_state.pattern_confidence.get("Choppy", 0.0),
-                            st.session_state.pattern_confidence.get("Markov", 0.0),
-                            st.session_state.pattern_confidence.get("Bayesian", 0.0)
+                            st.session_state.pattern_confidence.get('Odd', 0.0),
+                            st.session_state.pattern_confidence.get('Even', '0.0),
+                            st.session_state.pattern_confidence.get('Alternating', '0.0),
+                            st.session_state.pattern_confidence.get('Streak', '0.0),
+                            st.session_state.pattern_confidence.get('Choppy', '0.0),
+                            st.session_state.pattern_confidence.get('Markov', '0.0),
+                            st.session_state.pattern_confidence.get('Bayesian', '0.0)
                         ],
-                        "borderColor": "#10B981",
-                        "backgroundColor": "rgba(16, 185, 129, 0.2)",
-                        "fill": True,
-                        "tension": 0.4
+                        "backgroundColor": [
+                            "#FF6384",
+                            "#36A2EB",
+                            "#FFCE56",
+                            "#4BC0C0",
+                            "#9966FF",
+                            "#FF9F40",
+                            "#FF6347"
+                        ]
                     }
                 ]
             },
             "options": {
                 "responsive": True,
                 "plugins": {
-                    "legend": {"display": True, "labels": {"color": "#E5E7EB"}},
-                    "title": {"display": True, "text": "Pattern Confidence Scores", "color": "#E5E7EB"}
-                },
-                "scales": {
-                    "x": {"ticks": {"color": "#E5E7EB"}, "grid": {"color": "#4B5563"}},
-                    "y": {
-                        "beginAtZero": True,
-                        "max": 1,
-                        "ticks": {"color": "#E5E7EB"}, 
-                        "grid": {"color": "#4B5563"}
+                    "legend": {
+                        "position": "top",
+                        "labels": {"color": "#e5e7eb"}
+                    },
+                    "title": {
+                        "display": True,
+                        "text": "Pattern Confidence",
+                        "color": "#e5e7eb"
                     }
                 }
             }
         }
-        
-        chart_json = json.dumps(chart_config, ensure_ascii=True)
+        chart_data = json.dumps(chart_config, ensure_ascii=False)
         st.markdown(f"""
             <div class="card">
-                <canvas id="patternChart"></canvas>
+                <canvas id="chart"></canvas>
             </div>
-            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js"></script>
             <script>
-                document.addEventListener('DOMContentLoaded', function() {{
-                    const ctx = document.getElementById('patternChart').getContext('2d');
-                    new Chart(ctx, {chart_json});
-                }});
+                document.addEventListener('DOMContentLoaded', () => {
+                    const ctx = document.getElementById('chart').getContext('2d');
+                    new Chart(ctx, {chart_data});
+                });
             </script>
-            """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-        st.markdown('<h2>Bet History</h2>', unsafe_allow_html=True)
+        st.markdown("<h2>Bet History</h2>", unsafe_allow_html=True)
         if st.session_state.stats.get('bet_history', []):
             bet_history = pd.DataFrame(st.session_state.stats.get('bet_history', []))
             st.dataframe(bet_history, use_container_width=True, height=200)
