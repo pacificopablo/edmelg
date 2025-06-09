@@ -159,8 +159,8 @@ def record_result(result):
                         lock_amount = st.session_state.result_tracker
                         st.session_state.profit_lock += lock_amount
                         st.session_state.result_tracker = 0.0  # Reset bankroll
-                        st.session_state.bet_amount = 0.0  # Pause betting
-                        st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Betting paused.", "id": str(uuid.uuid4())})
+                        st.session_state.bet_amount = st.session_state.base_amount  # Continue betting with base amount
+                        st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Continuing with ${st.session_state.bet_amount:.2f} bet.", "id": str(uuid.uuid4())})
                     elif st.session_state.result_tracker > st.session_state.max_profit:
                         st.session_state.max_profit = st.session_state.result_tracker
                         st.session_state.bet_amount = st.session_state.base_amount  # Reset to base
