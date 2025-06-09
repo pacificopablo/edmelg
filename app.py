@@ -376,30 +376,6 @@ def main():
         .stButton>button:hover {
             background-color: #4F46E5;
         }
-        .player-button {
-            background-color: #3B82F6 !important; /* Blue for Player */
-        }
-        .player-button:hover {
-            background-color: #2563EB !important;
-        }
-        .banker-button {
-            background-color: #EF4444 !important; /* Red for Banker */
-        }
-        .banker-button:hover {
-            background-color: #DC2626 !important;
-        }
-        .tie-button {
-            background-color: #10B981 !important; /* Green for Tie */
-        }
-        .tie-button:hover {
-            background-color: #059669 !important;
-        }
-        .undo-button {
-            background-color: #6B7280 !important; /* Gray for Undo */
-        }
-        .undo-button:hover {
-            background-color: #4B5563 !important;
-        }
         .stNumberInput input {
             background-color: #23272A;
             color: white;
@@ -589,21 +565,17 @@ def main():
         else:
             st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
 
-        # Result input buttons with color coding
+        # Result input buttons
         st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.markdown('<style>.player-button {width: 100%;}</style>', unsafe_allow_html=True)
-            st.button("Player", on_click=lambda: record_result('P'), key="player_button", help="Record a Player win", args=None, kwargs={"className": "player-button"})
+            st.button("Player", on_click=lambda: record_result('P'))
         with col2:
-            st.markdown('<style>.banker-button {width: 100%;}</style>', unsafe_allow_html=True)
-            st.button("Banker", on_click=lambda: record_result('B'), key="banker_button", help="Record a Banker win", args=None, kwargs={"className": "banker-button"})
+            st.button("Banker", on_click=lambda: record_result('B'))
         with col3:
-            st.markdown('<style>.tie-button {width: 100%;}</style>', unsafe_allow_html=True)
-            st.button("Tie", on_click=lambda: record_result('T'), key="tie_button", help="Record a Tie", args=None, kwargs={"className": "tie-button"})
+            st.button("Tie", on_click=lambda: record_result('T'))
         with col4:
-            st.markdown('<style>.undo-button {width: 100%;}</style>', unsafe_allow_html=True)
-            st.button("Undo", on_click=undo, key="undo_button", help="Undo the last action", args=None, kwargs={"className": "undo-button"})
+            st.button("Undo", on_click=undo)
 
         # Deal History
         st.markdown('<h2>Deal History</h2>', unsafe_allow_html=True)
