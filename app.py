@@ -264,7 +264,7 @@ def record_result(result):
                 st.session_state.profit_lock = st.session_state.result_tracker
                 st.session_state.result_tracker = 0.0
                 st.session_state.bet_amount = st.session_state.base_amount
-                st.session_state.alerts.append({"type": "info", "message": f"New profit lock achieved: ${st.session_state.profit_lock:.2f}! Bankroll reset.", "id": str(uuid.uuid4())})
+                st.session_state.alerts.append({"type": "success", "message": f"New profit lock achieved! +${st.session_state.profit_lock:.2f}", "id": str(uuid.uuid4())})
             elif st.session_state.consecutive_wins >= 2:
                 st.session_state.bet_amount = max(st.session_state.base_amount, st.session_state.bet_amount - st.session_state.base_amount)
         else:
@@ -306,12 +306,11 @@ def record_result(result):
     if len(st.session_state.pair_types) < 5 or prediction == "Hold":
         st.session_state.bet_amount = 0
         if len(st.session_state.pair_types) < 5:
-            st.session_state.alerts.append({"type": "info", "message": f"Result recorded. Need {5 - len(st.session_state.pair_types)} more results to start betting.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "success", "message": f"Result recorded! Need {5 - len(st.session_state.pair_types)} more results to start betting.", "id": str(uuid.uuid4())})
 
 def undo():
     """Undo the last action."""
     if not st.session_state.state_history:
-        st.session_state.alerts.append({"type": "error", "message": "No actions to undo.", "id": str(uuid.uuid4())})
         return
 
     last_state = st.session_state.state_history.pop()
@@ -337,111 +336,133 @@ def simulate_games():
     for _ in range(100):
         result = random.choices(outcomes, weights)[0]
         record_result(result)
-    st.session_state.alerts.append({"type": "success", "message": "Simulated 100 games. Check stats and bet history for results.", "id": str(uuid.uuid4())})
 
 def clear_alerts():
     """Clear all alerts."""
-    st.session_state.alerts = []
+    st.session_state.alerts.clear()
 
 def main():
     """Main Streamlit application."""
     # Initialize session state
     initialize_session_state()
 
-    # Custom CSS with Tailwind CDN
+    # Custom CSS with Tailwind classes
     st.markdown("""
         <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         <style>
-        body, .stApp {
-            background-color: #1F2528;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            color: #E5E7EB;
-        }
-        .card {
-            background-color: #2C2F33;
-            border-radius: 0.75rem;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            margin-bottom: 1rem;
-        }
-        .stButton>button {
-            background-color: #6366F1;
-            color: white;
-            border-radius: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            transition: background-color 0.2s;
-            width: 100%;
-        }
-        .stButton>button:hover {
-            background-color: #4F46E5;
-        }
-        .stNumberInput input {
-            background-color: #23272A;
-            color: white;
-            border: 1px solid #4B5563;
-            border-radius: 0.5rem;
-            padding: 0.5rem;
-        }
-        .stDataFrame table {
-            background-color: #23272A;
-            color: white;
-            border-collapse: collapse;
-        }
-        .stDataFrame th {
-            background-color: #374151;
-            color: white;
-            font-weight: 600;
-            padding: 0.75rem;
-        }
-        .stDataFrame td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #4B5563;
-        }
-        .stDataFrame tr:nth-child(even) {
-            background-color: #2D3748;
-        }
-        h1 {
-            font-size: 2.25rem;
-            font-weight: 700;
-            color: #F3F4F6;
-            margin-bottom: 1rem;
-        }
-        h2 {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: #D1D5DB;
-            margin-bottom: 0.75rem;
-        }
-        .alert {
-            padding: 1rem;
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .alert-success {
-            background-color: #10B981;
-            color: white;
-        }
-        .alert-error {
-            background-color: #EF4444;
-            color: white;
-        }
-        .alert-info {
-            background-color: #3B82F6;
-            color: white;
-        }
-        .alert-warning {
-            background-color: #F59E0B;
-            color: white;
-        }
-        .sidebar .stButton>button {
-            margin-bottom: 0.5rem;
-        }
-        .result-history {
-            white-space: pre-wrap;
-            overflow-x: auto;
-            max-width: 100%;
-        }
+            body, .stApp {
+                background-color: #1F2528;
+                font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                color: #E5E7EB;
+            }
+            .card {
+                background-color: #2C2F33;
+                border-radius: 0.75rem;
+                padding: 1.5rem;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                margin-bottom: 1rem;
+            }
+            .stButton>button {
+                background-color: #6366F1;
+                color: white;
+                border-radius: 0.5rem;
+                padding: 0.75rem 1.5rem;
+                font-weight: 600;
+                transition: background-color 0.2s;
+                width: 100%;
+            }
+            .stButton>button:hover {
+                background-color: #4F46E5;
+            }
+            .stNumberInput input {
+                background-color: #23272A;
+                color: white;
+                border: 1px solid #4B5563;
+                border-radius: 0.5rem;
+                padding: 0.5rem;
+            }
+            .stDataFrame table {
+                background-color: #23272A;
+                color: white;
+                border-collapse: collapse;
+            }
+            .stDataFrame th {
+                background-color: #374151;
+                color: white;
+                font-weight: 600;
+                padding: 0.75rem;
+            }
+            .stDataFrame td {
+                padding: 0.75rem;
+                border-bottom: 1px solid #4B5563;
+            }
+            .stDataFrame tr:nth-child(even) {
+                background-color: #2D3748;
+            }
+            h1 {
+                font-size: 2.25rem;
+                font-weight: 700;
+                color: #F3F4F6;
+                margin-bottom: 1rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+                font-weight: 600;
+                color: #D1D5DB;
+                margin-bottom: 0.75rem;
+            }
+            .alert {
+                padding: 1rem;
+                border-radius: 0.5rem;
+                margin-bottom: 1rem;
+            }
+            .alert-success {
+                background-color: #10B981;
+                color: white;
+            }
+            .alert-error {
+                background-color: #EF4444;
+                color: white;
+            }
+            .alert-info {
+                background-color: #3B82F6;
+                color: white;
+            }
+            .alert-warning {
+                background-color: #F59E0B;
+                color: white;
+            }
+            .sidebar .stButton>button {
+                margin-bottom: 0.5rem;
+            }
+            .result-history {
+                display: flex;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                scroll-behavior: smooth;
+                gap: 0.25rem;
+                padding: 0.5rem;
+                max-width: 100%;
+            }
+            .result-item {
+                min-width: 2rem;
+                height: 2rem;
+                line-height: 2rem;
+                text-align: center;
+                border-radius: 0.25rem;
+                font-size: 0.875rem;
+                font-weight: bold;
+                color: white;
+            }
+            .result-p {
+                background-color: #3B82F6; /* Blue for Player */
+            }
+            .result-b {
+                background-color: #EF4444; /* Red for Banker */
+            }
+            .result-t {
+                background-color: #10B981; /* Green for Tie */
+            }
         </style>
     """, unsafe_allow_html=True)
 
@@ -462,10 +483,10 @@ def main():
     with st.sidebar:
         st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
         with st.expander("Bet Settings", expanded=True):
-            st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
+            st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=0.5, key="base_amount_input")
             st.button("Set Amount", on_click=set_base_amount)
 
-        with st.expander("Session Actions"):
+        with st.expander("Session Actions", expanded=True):
             st.button("Reset Bet", on_click=reset_betting)
             st.button("Reset Session", on_click=reset_all)
             st.button("New Session", on_click=lambda: [reset_all(), st.session_state.alerts.append({"type": "success", "message": "New session started.", "id": str(uuid.uuid4())})])
@@ -479,34 +500,51 @@ def main():
             st.markdown(f"""
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Bankroll</p>
-                    <p class="text-xl font-bold text-white">${st.session_state.result_tracker:.2f}</p>
+                    <p class="text-xl font-semibold text-white">${st.session_state.result_tracker:.2f}</p>
                 </div>
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Profit Lock</p>
-                    <p class="text-xl font-bold text-white">${st.session_state.profit_lock:.2f}</p>
+                    <p class="text-xl font-semibold text-white">${st.session_state.profit_lock:.2f}</p>
                 </div>
             """, unsafe_allow_html=True)
         with col2:
             st.markdown(f"""
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Next Bet</p>
-                    <p class="text-xl font-bold text-white">{st.session_state.next_prediction}</p>
+                    <p class="text-xl font-semibold text-white">{st.session_state.next_prediction}</p>
                 </div>
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Bet Amount</p>
-                    <p class="text-xl font-bold text-white">{'No Bet' if st.session_state.bet_amount == 0 else f'${st.session_state.bet_amount:.2f}'}</p>
+                    <p class="text-xl font-semibold text-white">{'No Bet' if st.session_state.bet_amount == 0 else f'${st.session_state.bet_amount:.2f}'}</p>
                 </div>
             """, unsafe_allow_html=True)
 
-        # Result History (P, B, T sequence)
+        # Result History (horizontal, 20 results, auto-scroll)
         st.markdown('<h2>Result History</h2>', unsafe_allow_html=True)
         if st.session_state.results:
-            result_sequence = " ".join(st.session_state.results)
+            # Get last 20 results
+            recent_results = list(st.session_state.results)[-20:]
+            # Generate HTML for each result
+            result_items = [
+                f'<span class="result-item result-{r.lower()}">{r}</span>'
+                for r in recent_results
+            ]
+            result_html = "".join(result_items)
             st.markdown(f"""
                 <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Results (P: Player, B: Banker, T: Tie)</p>
-                    <p class="text-base text-white result-history">{result_sequence}</p>
+                    <p class="text-sm font-semibold text-gray-400">Last 20 Results (P: Player, B: Banker, T: Tie)</p>
+                    <div class="result-history" id="resultHistory">
+                        {result_html}
+                    </div>
                 </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {{
+                        const resultDiv = document.getElementById('resultHistory');
+                        if (resultDiv) {{
+                            resultDiv.scrollLeft = resultDiv.scrollWidth;
+                        }}
+                    }});
+                </script>
             """, unsafe_allow_html=True)
         else:
             st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
