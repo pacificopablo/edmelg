@@ -5,12 +5,13 @@ import pandas as pd
 import uuid
 import json
 from collections import deque
+import numpy as np
 
 def initialize_session_state():
     """Initialize session state variables if not already set."""
     if 'pair_types' not in st.session_state:
-        st.session_state.pair_types = deque(maxlen=100)  # Store up to 100 pairs
-        st.session_state.results = deque(maxlen=200)  # Store raw results
+        st.session_state.pair_types = deque(maxlen=100)
+        st.session_state.results = deque(maxlen=200)
         st.session_state.next_prediction = "N/A"
         st.session_state.base_amount = 10.0
         st.session_state.bet_amount = 0.0
@@ -32,7 +33,7 @@ def initialize_session_state():
             'alternating_pairs': 0,
             'bet_history': []
         }
-        st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0}
+        st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
         st.session_state.alerts = []
 
 def set_base_amount():
@@ -66,25 +67,48 @@ def compute_markov_probabilities(results):
             for next_state in transitions[state]:
                 probabilities[state][next_state] = transitions[state][next_state] / total
         else:
-            # Default to uniform probabilities if no transitions
             probabilities[state] = {'P': 0.446, 'B': 0.458, 'T': 0.096}
     
     return probabilities
 
+def compute_bayesian_probabilities(results):
+    """Compute Bayesian posterior transition probabilities using Dirichlet priors."""
+    prior_params = {'P': {'P': 0.446, 'B': 0.458, 'T': 0.096}, 
+                   'B': {'P': 0.446, 'B': 0.458, 'T': 0.096}, 
+                   'T': {'P': 0.446, 'B': 0.458, 'T': 0.096}}
+    alpha = 1.0  # Dirichlet concentration parameter for smoothing
+    transitions = {'P': {'P': 0, 'B': 0, 'T': 0}, 'B': {'P': 0, 'B': 0, 'T': 0}, 'T': {'P': 0, 'B': 0, 'T': 0}}
+    
+    for i in range(len(results) - 1):
+        current, next_state = results[i], results[i + 1]
+        if current in transitions and next_state in transitions[current]:
+            transitions[current][next_state] += 1
+    
+    posterior_probs = {'P': {}, 'B': {}, 'T': {}}
+    for state in transitions:
+        total_counts = sum(transitions[state].values())
+        total_alpha = sum(prior_params[state].values()) * alpha
+        for next_state in transitions[state]:
+            count = transitions[state][next_state]
+            prior = prior_params[state][next_state] * alpha
+            posterior_probs[state][next_state] = (count + prior) / (total_counts + total_alpha)
+    
+    return posterior_probs
+
 def analyze_patterns():
-    """Analyze recent pairs and Markov transitions to determine dominant patterns and predictions."""
+    """Analyze patterns, Markov, and Bayesian probabilities to determine dominant strategy."""
     results = list(st.session_state.results)
     pairs = list(st.session_state.pair_types)
     if len(pairs) < 2:
         st.session_state.bet_amount = 0
-        return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0}, "N/A", "N/A", None
+        return {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}, "N/A", "N/A", None
 
-    # Calculate alternation rate for dynamic window sizes
+    # Calculate alternation rate
     recent_pairs = pairs[-10:] if len(pairs) >= 10 else pairs
     alternation_rate = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1]) / (len(recent_pairs)-1) if len(recent_pairs) > 1 else 0
     window_sizes = [3, 5, 8] if alternation_rate > 0.7 else [5, 10, 8]
 
-    pattern_scores = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0}
+    pattern_scores = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
     total_weight = 0.0
 
     for window in window_sizes:
@@ -92,7 +116,7 @@ def analyze_patterns():
             recent_pairs = pairs[-window:]
             recent_results = results[-window-1:] if len(results) >= window+1 else results
 
-            # Odd and Even pairs
+            # Pattern-based scores
             odd_count = sum(1 for a, b in recent_pairs if a != b)
             even_count = sum(1 for a, b in recent_pairs if a == b)
             total_pairs = odd_count + even_count
@@ -102,12 +126,10 @@ def analyze_patterns():
             pattern_scores["Even"] += even_score
             total_weight += window / 20
 
-            # Alternating pattern
             alternating_count = sum(1 for i in range(len(recent_pairs)-1) if recent_pairs[i][1] != recent_pairs[i+1][1])
             alternating_score = (alternating_count / (window-1)) * (window / 20) if window > 1 else 0
             pattern_scores["Alternating"] += alternating_score
 
-            # Streak detection
             streak_length = 1
             current_streak = recent_results[-1] if recent_results else None
             for i in range(2, len(recent_results)+1):
@@ -118,18 +140,15 @@ def analyze_patterns():
             streak_score = (streak_length / 5) * (window / 20) if streak_length >= 2 else 0
             pattern_scores["Streak"] += streak_score
 
-            # Choppy pattern
             choppy_count = sum(1 for i in range(len(recent_results)-1) if recent_results[i] != recent_results[i+1] and recent_results[i] != 'T' and recent_results[i+1] != 'T')
             choppy_score = (choppy_count / (window-1)) * (window / 20) if window > 1 else 0
             pattern_scores["Choppy"] += choppy_score
 
-    # Normalize pattern scores
     if total_weight > 0:
-        for pattern in pattern_scores:
-            if pattern != "Markov":
-                pattern_scores[pattern] /= total_weight
+        for pattern in ['Odd', 'Even', 'Alternating', 'Streak', 'Choppy']:
+            pattern_scores[pattern] /= total_weight
 
-    # Compute Markov probabilities
+    # Markov probabilities
     markov_probs = compute_markov_probabilities(results)
     last_result = st.session_state.previous_result
     if last_result in markov_probs:
@@ -138,14 +157,24 @@ def analyze_patterns():
         pattern_scores["Markov"] = max_prob
     else:
         markov_prediction = random.choice(['P', 'B'])
-        pattern_scores["Markov"] = 0.458  # Default to max of uniform probs
+        pattern_scores["Markov"] = 0.458
+
+    # Bayesian probabilities
+    bayesian_probs = compute_bayesian_probabilities(results)
+    if last_result in bayesian_probs:
+        max_prob = max(bayesian_probs[last_result].values())
+        bayesian_prediction = max(bayesian_probs[last_result], key=bayesian_probs[last_result].get)
+        pattern_scores["Bayesian"] = max_prob
+    else:
+        bayesian_prediction = random.choice(['P', 'B'])
+        pattern_scores["Bayesian"] = 0.458
 
     # Determine dominant pattern
     dominant_pattern = max(pattern_scores, key=pattern_scores.get)
     confidence = pattern_scores[dominant_pattern]
     streak_type = None
 
-    # Set prediction based on combined logic
+    # Pattern-based prediction
     pattern_prediction = "Hold"
     if confidence < 0.5 or len(pairs) < 8 or dominant_pattern == "Choppy":
         pattern_prediction = "Hold"
@@ -176,20 +205,30 @@ def analyze_patterns():
             pattern_prediction = "Hold"
             dominance = "N/A"
             st.session_state.bet_amount = 0
-    else:  # Markov
-        pattern_prediction = "Player" if markov_prediction == 'P' else "Banker" if markov_prediction == 'B' else "Hold"
-        dominance = "Markov"
-        st.session_state.bet_amount = st.session_state.base_amount if markov_prediction in ['P', 'B'] else 0
+    else:  # Markov or Bayesian
+        pattern_prediction = "Hold"
+        dominance = "N/A"
+        st.session_state.bet_amount = 0
 
-    # Combine predictions: Favor Markov if its probability is high and pattern confidence is low
+    # Combine predictions: Bayesian > Markov > Pattern
     final_prediction = pattern_prediction
-    if pattern_prediction == "Hold" and markov_prediction in ['P', 'B'] and pattern_scores["Markov"] > 0.5:
-        final_prediction = "Player" if markov_prediction == 'P' else "Banker"
-        dominance = "Markov"
-        st.session_state.bet_amount = st.session_state.base_amount
-    elif pattern_prediction in ["Player", "Banker"] and markov_prediction in ['P', 'B']:
-        markov_pred_equiv = "Player" if markov_prediction == 'P' else "Banker"
-        if pattern_prediction != markov_pred_equiv and pattern_scores["Markov"] > confidence + 0.2:
+    if pattern_prediction == "Hold":
+        if bayesian_prediction in ['P', 'B'] and pattern_scores["Bayesian"] > 0.5:
+            final_prediction = "Player" if bayesian_prediction == 'P' else "Banker"
+            dominance = "Bayesian"
+            st.session_state.bet_amount = st.session_state.base_amount
+        elif markov_prediction in ['P', 'B'] and pattern_scores["Markov"] > 0.5:
+            final_prediction = "Player" if markov_prediction == 'P' else "Banker"
+            dominance = "Markov"
+            st.session_state.bet_amount = st.session_state.base_amount
+    elif pattern_prediction in ["Player", "Banker"]:
+        markov_pred_equiv = "Player" if markov_prediction == 'P' else "Banker" if markov_prediction == 'B' else "Hold"
+        bayesian_pred_equiv = "Player" if bayesian_prediction == 'P' else "Banker" if bayesian_prediction == 'B' else "Hold"
+        if bayesian_pred_equiv in ["Player", "Banker"] and pattern_scores["Bayesian"] > confidence + 0.2 and pattern_scores["Bayesian"] > pattern_scores["Markov"]:
+            final_prediction = bayesian_pred_equiv
+            dominance = "Bayesian"
+            st.session_state.bet_amount = st.session_state.base_amount
+        elif markov_pred_equiv in ["Player", "Banker"] and pattern_scores["Markov"] > confidence + 0.2:
             final_prediction = markov_pred_equiv
             dominance = "Markov"
             st.session_state.bet_amount = st.session_state.base_amount
@@ -249,7 +288,7 @@ def reset_all():
         'alternating_pairs': 0,
         'bet_history': []
     }
-    st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0}
+    st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
     st.session_state.alerts.append({"type": "success", "message": "All session data reset, profit lock reset.", "id": str(uuid.uuid4())})
 
 def record_result(result):
@@ -566,7 +605,7 @@ def main():
             if st.button("Clear Alerts"):
                 clear_alerts()
 
-    st.markdown('<h1>Baccarat Predictor with Markov</h1>', unsafe_allow_html=True)
+    st.markdown('<h1>Baccarat Predictor with Markov and Bayesian</h1>', unsafe_allow_html=True)
 
     with st.sidebar:
         st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
@@ -681,7 +720,7 @@ def main():
         chart_config = {
             "type": "line",
             "data": {
-                "labels": ["Odd", "Even", "Alternating", "Streak", "Choppy", "Markov"],
+                "labels": ["Odd", "Even", "Alternating", "Streak", "Choppy", "Markov", "Bayesian"],
                 "datasets": [
                     {
                         "label": "Pattern Confidence",
@@ -691,7 +730,8 @@ def main():
                             st.session_state.pattern_confidence.get("Alternating", 0),
                             st.session_state.pattern_confidence.get("Streak", 0),
                             st.session_state.pattern_confidence.get("Choppy", 0),
-                            st.session_state.pattern_confidence.get("Markov", 0)
+                            st.session_state.pattern_confidence.get("Markov", 0),
+                            st.session_state.pattern_confidence.get("Bayesian", 0)
                         ],
                         "borderColor": "#10B981",
                         "backgroundColor": "rgba(16, 185, 129, 0.2)",
