@@ -3,6 +3,7 @@ import streamlit as st
 import random
 import pandas as pd
 import uuid
+import json
 from collections import deque
 
 def initialize_session_state():
@@ -328,6 +329,7 @@ def record_result(result):
     st.session_state.previous_result = result
 
     # Ensure bet_amount is 0 if not enough pairs or prediction is Hold
+    min_pairs = 8 if alternation_rate > 0.7 else 5
     if len(st.session_state.pair_types) < min_pairs or prediction == "Hold":
         st.session_state.bet_amount = 0
         if len(st.session_state.pair_types) < min_pairs:
@@ -689,7 +691,7 @@ def main():
             <script>
                 document.addEventListener('DOMContentLoaded', function() {{
                     const ctx = document.getElementById('patternChart').getContext('2d');
-                    new Chart(ctx, {JSON.stringify(chart_config)});
+                    new Chart(ctx, {json.dumps(chart_config)});
                 }});
             </script>
         """, unsafe_allow_html=True)
