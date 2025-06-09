@@ -43,11 +43,11 @@ def set_base_amount():
             st.session_state.bet_amount = st.session_state.base_amount if st.session_state.next_prediction in ["Player", "Banker"] else 0
             st.session_state.alerts.append({"type": "success", "message": "Base amount updated successfully.", "id": str(uuid.uuid4())})
         else:
-            st.session_state.alerts.append({"type": "error", "message": "Invalid base amount. Must be between $1 and $100.", "id": str(uuid.uuid4())})
+            st.session_state.alerts.append({"type": "error", "message": "Base amount must be between $1 and $100.", "id": str(uuid.uuid4())})
     except ValueError:
-        st.session_state.alerts.append({"type": "Error", "message": "Please enter a valid number.", "id": str(uuid.uuid4())})
+        st.session_state.alerts.append({"type": "error", "message": "Please enter a valid number.", "id": str(uuid.uuid4())})
 
-def analyze_patterns(window_sizes=[5, 10, 8]):
+def analyze_patterns(window_sizes=[5, 10, 20]):
     """Analyze recent pairs to determine dominant patterns and confidence scores."""
     results = list(st.session_state.results)
     pairs = list(st.session_state.pair_types)
@@ -365,16 +365,37 @@ def main():
             margin-bottom: 1rem;
         }
         .stButton>button {
-            background-color: #6366F1;
-            color: white;
-            border-radius: 0.5rem;
-            padding: 0.75rem 1.5rem;
-            font-weight: 600;
-            transition: background-color 0.2s;
-            width: 100%;
+            background-color: #6366F1 !important; /* Default for Undo */
+            color: white !important;
+            border-radius: 0.5rem !important;
+            padding: 0.75rem 1.5rem !important;
+            font-weight: 600 !important;
+            transition: background-color 0.2s !important;
+            width: 100% !important;
         }
         .stButton>button:hover {
-            background-color: #4F46E5;
+            background-color: #4F46E5 !important; /* Default hover for Undo */
+        }
+        .btn-player {
+            background-color: #3B82F6 !important; /* Blue for Player */
+            color: white !important;
+        }
+        .btn-player:hover {
+            background-color: #2563EB !important; /* Darker blue on hover */
+        }
+        .btn-banker {
+            background-color: #EF4444 !important; /* Red for Banker */
+            color: white !important;
+        }
+        .btn-banker:hover {
+            background-color: #DC2626 !important; /* Darker red on hover */
+        }
+        .btn-tie {
+            background-color: #10B981 !important; /* Green for Tie */
+            color: white !important;
+        }
+        .btn-tie:hover {
+            background-color: #059669 !important; /* Darker green on hover */
         }
         .stNumberInput input {
             background-color: #23272A;
@@ -481,7 +502,7 @@ def main():
     alert_container = st.container()
     with alert_container:
         for alert in st.session_state.alerts[-3:]:  # Show up to 3 recent alerts
-            alert_class = f"alert alert-{alert['type'].lower()}"
+            alert_class = f"alert alert-{alert['type']}"
             st.markdown(f'<div class="{alert_class}">{alert["message"]}</div>', unsafe_allow_html=True)
         if st.session_state.alerts:
             if st.button("Clear Alerts"):
@@ -519,7 +540,7 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
         with col2:
-            # Determine badge class based on next_prediction
+            # Determine badge class for Next Bet
             badge_class = (
                 "next-bet-badge bg-blue-500" if st.session_state.next_prediction == "Player" else
                 "next-bet-badge bg-red-500" if st.session_state.next_prediction == "Banker" else
@@ -565,15 +586,21 @@ def main():
         else:
             st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
 
-        # Result input buttons
+        # Result input buttons with color-coding
         st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.button("Player", on_click=lambda: record_result('P'))
+            st.markdown('<button class="stButton btn-player">Player</button>', unsafe_allow_html=True)
+            if st.button("Player", key="player_button"):
+                record_result('P')
         with col2:
-            st.button("Banker", on_click=lambda: record_result('B'))
+            st.markdown('<button class="stButton btn-banker">Banker</button>', unsafe_allow_html=True)
+            if st.button("Banker", key="banker_button"):
+                record_result('B')
         with col3:
-            st.button("Tie", on_click=lambda: record_result('T'))
+            st.markdown('<button class="stButton btn-tie">Tie</button>', unsafe_allow_html=True)
+            if st.button("Tie", key="tie_button"):
+                record_result('T')
         with col4:
             st.button("Undo", on_click=undo)
 
@@ -582,7 +609,7 @@ def main():
         if st.session_state.pair_types:
             history_data = [
                 {"Pair": f"{pair[0]}{pair[1]}", "Type": "Even" if pair[0] == pair[1] else "Odd"}
-                for pair in st.session_state.pair_types
+                for pair in st.session_state.history_data
             ]
             st.dataframe(pd.DataFrame(history_data), use_container_width=True, height=300)
         else:
@@ -595,8 +622,8 @@ def main():
         st.markdown(f"""
             <div class="card">
                 <p class="text-sm font-semibold text-gray-400">Statistics</p>
-                <p class="text-base text-white">Win Rate: {win_rate:.1f}%</p>
-                <p class="text-base text-white">Avg Streak: {avg_streak:.1f}</p>
+                <p class="text-base text-white">Win Rate: {win_rate:.2f}%</p>
+                <p class="text-base text-white">Avg Streak: {avg_streak:.2f}</p>
                 <p class="text-base text-white">Patterns: Odd: {st.session_state.stats['odd_pairs']}, Even: {st.session_state.stats['even_pairs']}, Alternating: {st.session_state.stats['alternating_pairs']}</p>
                 <p class="text-base text-white">Streak: {st.session_state.streak_type if st.session_state.streak_type else 'None'}</p>
             </div>
