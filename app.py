@@ -143,7 +143,7 @@ def analyze_patterns():
             st.session_state.bet_amount = 0
 
     # Adjust for shoe position
-    if len(results) < 20:
+    if len(results) < 5:
         prediction = "Hold"
         dominance = "N/A"
         st.session_state.bet_amount = 0
