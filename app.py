@@ -35,6 +35,34 @@ def initialize_session_state():
         }
         st.session_state.pattern_confidence = {"Odd": 0.0, "Even": 0.0, "Alternating": 0.0, "Streak": 0.0, "Choppy": 0.0, "Markov": 0.0, "Bayesian": 0.0}
         st.session_state.alerts = []
+    else:
+        # Validate stats to prevent corruption
+        if not isinstance(st.session_state.stats, dict):
+            st.session_state.stats = {
+                'wins': 0,
+                'losses': 0,
+                'ties': 0,
+                'streaks': [],
+                'odd_pairs': 0,
+                'even_pairs': 0,
+                'alternating_pairs': 0,
+                'bet_history': []
+            }
+        else:
+            # Ensure all required keys exist with correct types
+            default_stats = {
+                'wins': 0,
+                'losses': 0,
+                'ties': 0,
+                'streaks': [],
+                'odd_pairs': 0,
+                'even_pairs': 0,
+                'alternating_pairs': 0,
+                'bet_history': []
+            }
+            for key, value in default_stats.items():
+                if key not in st.session_state.stats or not isinstance(st.session_state.stats[key], type(value)):
+                    st.session_state.stats[key] = value
 
 def set_base_amount():
     """Set the base amount from user input."""
@@ -336,6 +364,33 @@ def reset_all():
 
 def record_result(result):
     """Record a game result and update state."""
+    # Ensure stats is valid
+    if not isinstance(st.session_state.stats, dict):
+        st.session_state.stats = {
+            'wins': 0,
+            'losses': 0,
+            'ties': 0,
+            'streaks': [],
+            'odd_pairs': 0,
+            'even_pairs': 0,
+            'alternating_pairs': 0,
+            'bet_history': []
+        }
+    else:
+        default_stats = {
+            'wins': 0,
+            'losses': 0,
+            'ties': 0,
+            'streaks': [],
+            'odd_pairs': 0,
+            'even_pairs': 0,
+            'alternating_pairs': 0,
+            'bet_history': []
+        }
+        for key, value in default_stats.items():
+            if key not in st.session_state.stats or not isinstance(st.session_state.stats[key], type(value)):
+                st.session_state.stats[key] = value
+
     current_prediction = st.session_state.next_prediction
     st.session_state.results.append(result)
 
@@ -357,7 +412,7 @@ def record_result(result):
     st.session_state.state_history.append(state)
 
     if result == 'T':
-        st.session_state.stats['ties'] += 1
+        st.session_state.stats['ties'] = int(st.session_state.stats['ties']) + 1
         st.session_state.previous_result = result
         st.session_state.bet_amount = 0
         st.session_state.alerts.append({"type": "info", "message": "Tie recorded. No bet placed.", "id": str(uuid.uuid4())})
@@ -384,17 +439,17 @@ def record_result(result):
         pair = (st.session_state.previous_result, result)
         st.session_state.pair_types.append(pair)
         pair_type = "Even" if pair[0] == pair[1] else "Odd"
-        st.session_state.stats['odd_pairs' if pair_type == "Odd" else 'even_pairs'] += 1
+        st.session_state.stats['odd_pairs' if pair_type == "Odd" else 'even_pairs'] = int(st.session_state.stats.get('odd_pairs' if pair_type == "Odd" else 'even_pairs', 0)) + 1
         if len(st.session_state.pair_types) >= 2:
             last_two_pairs = [p for p in st.session_state.pair_types[-2:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
             if len(last_two_pairs) == 2 and last_two_pairs[0][1] != last_two_pairs[1][1]:
-                st.session_state.stats['alternating_pairs'] += 1
+                st.session_state.stats['alternating_pairs'] = int(st.session_state.stats.get('alternating_pairs', 0)) + 1
 
     last_four_pairs = [p for p in st.session_state.pair_types[-4:] if isinstance(p, (tuple, list)) and len(p) == 2 and p[0] in ['P', 'B', 'T'] and p[1] in ['P', 'B', 'T']]
     last_four = [p[1] for p in last_four_pairs if p[1] != 'T']
     if len(last_four) >= 3 and all(r == result for r in last_four):
         st.session_state.streak_type = result
-        st.session_state.stats['streaks'].append(len(last_four))
+        st.session_state.stats['streaks'] = st.session_state.stats.get('streaks', []) + [len(last_four)]
     else:
         st.session_state.streak_type = None
 
@@ -403,35 +458,35 @@ def record_result(result):
         outcome = ""
         if current_prediction == "Player" and result == 'P':
             st.session_state.result_tracker += effective_bet
-            st.session_state.stats['wins'] += 1
-            st.session_state.consecutive_wins += 1
+            st.session_state.stats['wins'] = int(st.session_state.stats.get('wins', 0)) + 1
+            st.session_state.consecutive_wins = int(st.session_state.consecutive_wins) + 1
             st.session_state.consecutive_losses = 0
             st.session_state.bet_amount = st.session_state.base_amount
             outcome = f"Won ${effective_bet:.2f}"
             st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet:.2f}", "id": str(uuid.uuid4())})
         elif current_prediction == "Banker" and result == 'B':
             st.session_state.result_tracker += effective_bet * 0.95
-            st.session_state.stats['wins'] += 1
-            st.session_state.consecutive_wins += 1
+            st.session_state.stats['wins'] = int(st.session_state.stats.get('wins', 0)) + 1
+            st.session_state.consecutive_wins = int(st.session_state.consecutive_wins) + 1
             st.session_state.consecutive_losses = 0
             st.session_state.bet_amount = st.session_state.base_amount
             outcome = f"Won ${effective_bet * 0.95:.2f}"
             st.session_state.alerts.append({"type": "success", "message": f"Bet won! +${effective_bet * 0.95:.2f}", "id": str(uuid.uuid4())})
         elif current_prediction in ["Player", "Banker"]:
             st.session_state.result_tracker -= effective_bet
-            st.session_state.stats['losses'] += 1
-            st.session_state.consecutive_losses += 1
+            st.session_state.stats['losses'] = int(st.session_state.stats.get('losses', 0)) + 1
+            st.session_state.consecutive_losses = int(st.session_state.consecutive_losses) + 1
             st.session_state.consecutive_wins = 0
             st.session_state.bet_amount = min(3 * st.session_state.base_amount, math.ceil((st.session_state.bet_amount + 0.5 * st.session_state.base_amount) / st.session_state.base_amount) * st.session_state.base_amount)
             outcome = f"Lost ${effective_bet:.2f}"
             st.session_state.alerts.append({"type": "error", "message": f"Bet lost! -${effective_bet:.2f}", "id": str(uuid.uuid4())})
 
-        st.session_state.stats['bet_history'].append({
+        st.session_state.stats['bet_history'] = st.session_state.stats.get('bet_history', []) + [{
             'prediction': current_prediction,
             'result': result,
             'bet_amount': effective_bet,
             'outcome': outcome
-        })
+        }]
 
     if st.session_state.result_tracker >= 3 * st.session_state.base_amount:
         st.session_state.profit_lock += st.session_state.result_tracker
@@ -481,7 +536,37 @@ def undo():
     st.session_state.consecutive_wins = last_state['consecutive_wins']
     st.session_state.consecutive_losses = last_state['consecutive_losses']
     st.session_state.streak_type = last_state['streak_type']
-    st.session_state.stats = last_state['stats']
+    
+    # Validate stats
+    if not isinstance(last_state['stats'], dict):
+        st.session_state.stats = {
+            'wins': 0,
+            'losses': 0,
+            'ties': 0,
+            'streaks': [],
+            'odd_pairs': 0,
+            'even_pairs': 0,
+            'alternating_pairs': 0,
+            'bet_history': []
+        }
+    else:
+        st.session_state.stats = last_state['stats'].copy()
+        default_stats = {
+            'wins': 0,
+            'losses': 0,
+            'ties': 0,
+            'streaks': [],
+            'odd_pairs': 0,
+            'even_pairs': 0,
+            'alternating_pairs': 0,
+            'bet_history': []
+        }
+        for key, value in default_stats.items():
+            if key not in st.session_state.stats or not isinstance(st.session_state.stats[key], type(value)):
+                st.session_state.stats[key] = value
+            elif key in ['wins', 'losses', 'ties', 'odd_pairs', 'even_pairs', 'alternating_pairs']:
+                st.session_state.stats[key] = int(st.session_state.stats[key])
+
     st.session_state.pattern_confidence = last_state['pattern_confidence']
     st.session_state.alerts.append({"type": "success", "message": "Last action undone.", "id": str(uuid.uuid4())})
 
