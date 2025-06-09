@@ -462,23 +462,23 @@ def main():
         with col1:
             st.markdown(f"""
                 <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Next Bet</p>
-                    <p class="text-xl font-bold text-white">{st.session_state.next_prediction}</p>
-                </div>
-                <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Bet Amount</p>
-                    <p class="text-xl font-bold text-white">{'No Bet' if st.session_state.bet_amount == 0 else f'${st.session_state.bet_amount:.2f}'}</p>
-                </div>
-            """, unsafe_allow_html=True)
-        with col2:
-            st.markdown(f"""
-                <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Bankroll</p>
                     <p class="text-xl font-bold text-white">${st.session_state.result_tracker:.2f}</p>
                 </div>
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Profit Lock</p>
                     <p class="text-xl font-bold text-white">${st.session_state.profit_lock:.2f}</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+                <div class="card">
+                    <p class="text-sm font-semibold text-gray-400">Next Bet</p>
+                    <p class="text-xl font-bold text-white">{st.session_state.next_prediction}</p>
+                </div>
+                <div class="card">
+                    <p class="text-sm font-semibold text-gray-400">Bet Amount</p>
+                    <p class="text-xl font-bold text-white">{'No Bet' if st.session_state.bet_amount == 0 else f'${st.session_state.bet_amount:.2f}'}</p>
                 </div>
             """, unsafe_allow_html=True)
 
