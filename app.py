@@ -332,6 +332,20 @@ def main():
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             margin-bottom: 1rem;
         }
+        .card-player {
+            background-color: #3B82F6; /* Blue for Player */
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1rem;
+        }
+        .card-banker {
+            background-color: #EF4444; /* Red for Banker */
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0,  critiqued: 0.1);
+            margin-bottom: 1rem;
+        }
         .stButton>button {
             background-color: #6366F1;
             color: white;
@@ -472,6 +486,13 @@ def main():
         st.markdown('<h2>Overview</h2>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
+            # Determine the card class for Next Bet based on prediction
+            next_bet_class = "card"
+            if st.session_state.next_prediction == "Player":
+                next_bet_class = "card-player"
+            elif st.session_state.next_prediction == "Banker":
+                next_bet_class = "card-banker"
+                
             st.markdown(f"""
                 <div class="card">
                     <p class="text-sm font-semibold text-gray-400">Bankroll</p>
@@ -481,8 +502,8 @@ def main():
                     <p class="text-sm font-semibold text-gray-400">Profit Lock</p>
                     <p class="text-xl font-bold text-green-400">${st.session_state.profit_lock:.2f}</p>
                 </div>
-                <div class="card">
-                    <p class="text-sm font-semibold text-gray-400">Next Bet</p>
+                <div class="{next_bet_class}">
+                    <p class="text-sm font-semibold text-gray-200">Next Bet</p>
                     <p class="text-xl font-bold text-white">{st.session_state.next_prediction}</p>
                 </div>
                 <div class="card">
