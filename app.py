@@ -123,7 +123,7 @@ def reset_all():
     st.session_state.game_count = 0
     st.session_state.alerts.append({"type": "success", "message": "All session data reset, profit lock reset.", "id": str(uuid.uuid4())})
 
-def apply_betting_strategy(outcome, result):
+def apply_betting_strategy(outcome, result, bet_selection):
     """Apply the selected betting strategy and return bet amount and outcome."""
     bet_amount = st.session_state.bet_amount
     bet_outcome = None
@@ -136,22 +136,26 @@ def apply_betting_strategy(outcome, result):
         if bet_amount < proposed_bet:
             st.session_state.t3_level = max(1, int(bet_amount / st.session_state.base_amount))
             st.session_state.alerts.append({"type": "warning", "message": f"T3 bet reduced to ${bet_amount:.2f} due to bankroll limit.", "id": str(uuid.uuid4())})
-        # Update T3 results
-        if outcome == 'win':
-            if len(st.session_state.t3_results) == 0:
-                st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
-            st.session_state.t3_results.append('W')
-        elif outcome == 'loss':
-            st.session_state.t3_results.append('L')
-        # Update T3 level after 3 results
-        if len(st.session_state.t3_results) == 3:
-            wins = st.session_state.t3_results.count('W')
-            losses = st.session_state.t3_results.count('L')
-            if wins > losses:
-                st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
-            elif losses > wins:
-                st.session_state.t3_level += 1
-            st.session_state.t3_results = []
+
+        # Update T3 results based on outcome
+        if outcome:
+            if outcome == 'win':
+                if len(st.session_state.t3_results) == 0:  # First result in sequence
+                    st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
+                st.session_state.t3_results.append('W')
+            elif outcome == 'loss':
+                st.session_state.t3_results.append('L')
+            
+            # Update T3 level after 3 results
+            if len(st.session_state.t3_results) == 3:
+                wins = st.session_state.t3_results.count('W')
+                losses = st.session_state.t3_results.count('L')
+                if wins > losses:
+                    st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
+                elif losses > wins:
+                    st.session_state.t3_level += 1
+                st.session_state.t3_results = []
+        
         # Cap T3 level to prevent excessive bets
         max_t3_bet = st.session_state.result_tracker / st.session_state.base_amount
         st.session_state.t3_level = min(st.session_state.t3_level, max(1, int(max_t3_bet)))
@@ -180,6 +184,8 @@ def record_result(result):
             st.session_state.session_profit = 0.0
             st.session_state.result_tracker = st.session_state.initial_bankroll
             st.session_state.bet_amount = st.session_state.base_amount
+            st.session_state.t3_level = 1
+            st.session_state.t3_results = []
             st.session_state.alerts.append({"type": "success", "message": f"Win limit reached! Locked ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Please reset betting.", "id": str(uuid.uuid4())})
             return
 
@@ -255,7 +261,7 @@ def record_result(result):
         if len(st.session_state.pair_types) >= 6:
             previous_prediction = st.session_state.state_history[-1]['next_prediction']
             if previous_prediction != "N/A":
-                bet_amount, _ = apply_betting_strategy(None, result)  # Get bet amount
+                bet_amount, _ = apply_betting_strategy(None, result, previous_prediction)  # Get bet amount
                 if bet_amount > 0:
                     if (previous_prediction == "Player" and result == "P") or \
                        (previous_prediction == "Banker" and result == "B"):
@@ -271,6 +277,8 @@ def record_result(result):
                             st.session_state.session_profit = 0.0
                             st.session_state.result_tracker = st.session_state.initial_bankroll
                             st.session_state.bet_amount = st.session_state.base_amount
+                            st.session_state.t3_level = 1
+                            st.session_state.t3_results = []
                             st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}.", "id": str(uuid.uuid4())})
                         elif st.session_state.session_profit > st.session_state.max_profit:
                             st.session_state.max_profit = st.session_state.session_profit
@@ -287,8 +295,8 @@ def record_result(result):
                             st.session_state.alerts.append({"type": "error", "message": "Bankroll depleted! Please reset betting to continue.", "id": str(uuid.uuid4())})
                             return
 
-                    # Apply betting strategy updates
-                    apply_betting_strategy(outcome, result)
+                    # Apply T3 betting strategy updates
+                    apply_betting_strategy(outcome, result, previous_prediction)
 
                     # Update bet history
                     st.session_state.stats['bet_history'].append({
@@ -352,6 +360,9 @@ def simulate_games():
             st.session_state.profit_lock += lock_amount
             st.session_state.session_profit = 0.0
             st.session_state.result_tracker = st.session_state.initial_bankroll
+            st.session_state.bet_amount = st.session_state.base_amount
+            st.session_state.t3_level = 1
+            st.session_state.t3_results = []
             st.session_state.alerts.append({"type": "success", "message": f"Win limit reached during simulation! Locked ${lock_amount:.2f}.", "id": str(uuid.uuid4())})
             break
         result = random.choices(outcomes, weights)[0]
