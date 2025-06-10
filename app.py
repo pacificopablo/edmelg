@@ -146,12 +146,13 @@ def apply_betting_strategy(outcome, result):
 def record_result(result):
     """Record a game result and update state with Dominant Pairs betting logic."""
     # Check stop loss and win limit
-    if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
-        st.session_state.alerts.append({"type": "warning", "message": f"Stop-loss reached ({st.session_state.stop_loss*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
-        return
-    if st.session_state.result_tracker >= st.session_state.initial_bankroll * st.session_state.win_limit:
-        st.session_state.alerts.append({"type": "success", "message": f"Win limit reached ({st.session_state.win_limit*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
-        return
+    if st.session_state.initial_bankroll > 0:  # Only check if bankroll is set
+        if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
+            st.session_state.alerts.append({"type": "warning", "message": f"Stop-loss reached ({st.session_state.stop_loss*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
+            return
+        if st.session_state.result_tracker >= st.session_state.initial_bankroll * st.session_state.win_limit:
+            st.session_state.alerts.append({"type": "success", "message": f"Win limit reached ({st.session_state.win_limit*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
+            return
 
     # Save current state before modifications for undo
     state = {
@@ -288,6 +289,10 @@ def simulate_games():
     outcomes = ['P', 'B', 'T']
     weights = [0.446, 0.458, 0.096]
     for _ in range(100):
+        if st.session_state.initial_bankroll > 0:
+            if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss or \
+               st.session_state.result_tracker >= st.session_state.initial_bankroll * st.session_state.win_limit:
+                break
         result = random.choices(outcomes, weights)[0]
         record_result(result)
     st.session_state.alerts.append({"type": "success", "message": "Simulated 100 games. Check stats and history for results.", "id": str(uuid.uuid4())})
@@ -437,14 +442,14 @@ def main():
     # Sidebar for controls
     with st.sidebar:
         st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
-        with st.expander("Settings", expanded=True):
+        with st.expander("Money Management", expanded=True):
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
             st.selectbox("Betting Strategy", ["Flatbet", "T3"], key="strategy_select")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
-            st.button("Apply Settings", on_click=lambda: [set_base_amount(), set_betting_strategy()])
+            st.button("Apply Money Management", on_click=lambda: [set_base_amount(), set_betting_strategy()])
 
         with st.expander("Session Actions"):
             st.button("Reset Session", on_click=reset_all)
