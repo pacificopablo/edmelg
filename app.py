@@ -38,8 +38,6 @@ def initialize_session_state():
         st.session_state.stop_loss = 0.8  # Stop at 80% of initial bankroll
         st.session_state.win_limit = 1.5  # Win at 150% of initial bankroll
         st.session_state.initial_bankroll = 1000.0  # Default initial bankroll
-        # Monetization variables
-        st.session_state.is_premium_user = False  # Simulate subscription status
         st.session_state.game_count = 0  # Track number of recorded games
 
 def set_money_management():
@@ -68,9 +66,6 @@ def set_money_management():
 
 def set_betting_strategy():
     """Set the betting strategy and reset strategy-specific parameters."""
-    if st.session_state.strategy_select == "T3" and not st.session_state.is_premium_user:
-        st.session_state.alerts.append({"type": "error", "message": "T3 strategy is available only for SuperGrok Plan subscribers. <a href='https://x.ai/grok' target='_blank'>Upgrade now</a>.", "id": str(uuid.uuid4())})
-        return
     st.session_state.betting_strategy = st.session_state.strategy_select
     if st.session_state.betting_strategy == "T3":
         st.session_state.t3_level = 1
@@ -168,10 +163,6 @@ def apply_betting_strategy(outcome, result, bet_selection):
 
 def record_result(result):
     """Record a game result and update state with Dominant Pairs betting logic."""
-    if not st.session_state.is_premium_user and st.session_state.game_count >= 50:
-        st.session_state.alerts.append({"type": "error", "message": "Free tier limit of 50 games reached. <a href='https://x.ai/grok' target='_blank'>Upgrade to SuperGrok Plan</a> or reset session.", "id": str(uuid.uuid4())})
-        return
-
     if st.session_state.initial_bankroll > 0:
         if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
             st.session_state.alerts.append({"type": "warning", "message": f"Stop-loss reached ({st.session_state.stop_loss*100:.0f}% of initial bankroll). Please reset betting to continue.", "id": str(uuid.uuid4())})
@@ -324,15 +315,9 @@ def undo():
 
 def simulate_games():
     """Simulate 100 games."""
-    if not st.session_state.is_premium_user:
-        st.session_state.alerts.append({"type": "error", "message": "Simulation is available only for SuperGrok Plan subscribers. <a href='https://x.ai/grok' target='_blank'>Upgrade now</a>.", "id": str(uuid.uuid4())})
-        return
     outcomes = ['P', 'B', 'T']
     weights = [0.446, 0.458, 0.096]
     for _ in range(100):
-        if not st.session_state.is_premium_user and st.session_state.game_count >= 50:
-            st.session_state.alerts.append({"type": "error", "message": "Free tier limit of 50 games reached. <a href='https://x.ai/grok' target='_blank'>Upgrade to SuperGrok Plan</a>.", "id": str(uuid.uuid4())})
-            break
         if st.session_state.result_tracker <= 0:
             st.session_state.alerts.append({"type": "error", "message": "Bankroll depleted during simulation!", "id": str(uuid.uuid4())})
             break
@@ -495,14 +480,6 @@ def main():
         .result-t {
             background-color: #10B981;
         }
-        .badge-premium {
-            background-color: #FBBF24;
-            color: #1F2528;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
         .strategy-label {
             font-size: 0.875rem;
             font-weight: 500;
@@ -525,18 +502,14 @@ def main():
 
     with st.sidebar:
         st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
-        if st.session_state.is_premium_user:
-            st.markdown('<p class="badge-premium">SuperGrok Plan</p>', unsafe_allow_html=True)
-        else:
-            st.markdown('<p class="text-sm text-gray-400">Free Tier - <a href="https://x.ai/grok" target="_blank">Upgrade to SuperGrok</a></p>', unsafe_allow_html=True)
         
         with st.expander("Money Management", expanded=True):
             st.number_input("Initial Bankroll ($10-$10000)", min_value=10.0, max_value=10000.0, value=st.session_state.initial_bankroll, step=10.0, key="initial_bankroll_input")
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
             st.markdown('<p class="strategy-label">Select Betting Strategy</p>', unsafe_allow_html=True)
-            strategy_options = ["Flatbet", "T3"] if st.session_state.is_premium_user else ["Flatbet"]
-            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. T3: Dynamic bet sizing based on win/loss patterns (premium only).")
+            strategy_options = ["Flatbet", "T3"]
+            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. T3: Dynamic bet sizing based on win/loss patterns.")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
@@ -546,7 +519,7 @@ def main():
             st.button("Reset Betting", on_click=reset_betting)
             st.button("Reset Session", on_click=reset_all)
             st.button("New Session", on_click=lambda: [reset_all(), st.session_state.alerts.append({"type": "success", "message": "New session started.", "id": str(uuid.uuid4())})])
-            st.button("Simulate 100 Games", on_click=simulate_games, disabled=not st.session_state.is_premium_user)
+            st.button("Simulate 100 Games", on_click=simulate_games)
 
     with st.container():
         st.markdown('<h2>Overview</h2>', unsafe_allow_html=True)
