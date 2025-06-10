@@ -29,34 +29,53 @@ def initialize_session_state():
             'bet_history': []
         }
         st.session_state.alerts = []  # List to store active alerts
-        st.session_state.profit_lock_threshold = 2 * st.session_state.base_amount  # Initialize profit lock threshold
+        st.session_state.profit_lock_threshold = 2 * st.session_state.base_amount
+        # Money management variables
+        st.session_state.betting_strategy = "Flatbet"
+        st.session_state.t3_level = 1
+        st.session_state.t3_results = []
+        st.session_state.stop_loss = 0.8  # Stop at 80% of initial bankroll
+        st.session_state.win_limit = 1.5  # Stop at 150% of initial bankroll
+        st.session_state.initial_bankroll = 0.0
 
 def set_base_amount():
-    """Set the base amount from user input and update profit lock threshold."""
+    """Set the base amount and money management parameters from user input."""
     try:
         amount = float(st.session_state.base_amount_input)
         if 1 <= amount <= 100:
             st.session_state.base_amount = amount
-            st.session_state.profit_lock_threshold = 2 * amount  # Update threshold
-            st.session_state.alerts.append({"type": "success", "message": "Base amount updated successfully.", "id": str(uuid.uuid4())})
+            st.session_state.profit_lock_threshold = 2 * amount
+            st.session_state.initial_bankroll = amount * 100  # Assume 100x base for bankroll
+            st.session_state.alerts.append({"type": "success", "message": "Base amount and bankroll updated successfully.", "id": str(uuid.uuid4())})
         else:
             st.session_state.alerts.append({"type": "error", "message": "Invalid base amount. Must be between $1 and $100.", "id": str(uuid.uuid4())})
     except ValueError:
         st.session_state.alerts.append({"type": "error", "message": "Please enter a valid number.", "id": str(uuid.uuid4())})
 
+def set_betting_strategy():
+    """Set the betting strategy and reset strategy-specific parameters."""
+    st.session_state.betting_strategy = st.session_state.strategy_select
+    if st.session_state.betting_strategy == "T3":
+        st.session_state.t3_level = 1
+        st.session_state.t3_results = []
+    st.session_state.bet_amount = st.session_state.base_amount
+    st.session_state.alerts.append({"type": "success", "message": f"Betting strategy set to {st.session_state.betting_strategy}.", "id": str(uuid.uuid4())})
+
 def reset_betting():
     """Reset betting parameters."""
-    if st.session_state.result_tracker <= -10 * st.session_state.base_amount:
+    if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
         if st.session_state.result_tracker > 0:
             st.session_state.profit_lock += st.session_state.result_tracker
             st.session_state.alerts.append({"type": "success", "message": f"Stop-loss reached. Locked remaining profit: ${st.session_state.result_tracker:.2f}", "id": str(uuid.uuid4())})
         st.session_state.alerts.append({"type": "warning", "message": "Stop-loss reached. Resetting to resume tracking.", "id": str(uuid.uuid4())})
     if st.session_state.result_tracker >= 0:
         st.session_state.result_tracker = 0.0
-    st.session_state.bet_amount = 0.0
+    st.session_state.bet_amount = st.session_state.base_amount
     st.session_state.max_profit = 0.0
     st.session_state.next_prediction = "N/A"
     st.session_state.current_dominance = "N/A"
+    st.session_state.t3_level = 1
+    st.session_state.t3_results = []
     st.session_state.alerts.append({"type": "success", "message": "Betting reset.", "id": str(uuid.uuid4())})
 
 def reset_all():
@@ -83,10 +102,57 @@ def reset_all():
         'bet_history': []
     }
     st.session_state.profit_lock_threshold = 2 * st.session_state.base_amount
+    st.session_state.betting_strategy = "Flatbet"
+    st.session_state.t3_level = 1
+    st.session_state.t3_results = []
+    st.session_state.initial_bankroll = 0.0
     st.session_state.alerts.append({"type": "success", "message": "All session data reset, profit lock reset.", "id": str(uuid.uuid4())})
+
+def apply_betting_strategy(outcome, result):
+    """Apply the selected betting strategy and return bet amount and outcome."""
+    bet_amount = st.session_state.bet_amount
+    bet_outcome = None
+
+    if st.session_state.betting_strategy == "Flatbet":
+        bet_amount = st.session_state.base_amount
+    elif st.session_state.betting_strategy == "T3":
+        bet_amount = st.session_state.base_amount * st.session_state.t3_level
+        # Update T3 results
+        if outcome == 'win':
+            if len(st.session_state.t3_results) == 0:
+                st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
+            st.session_state.t3_results.append('W')
+        elif outcome == 'loss':
+            st.session_state.t3_results.append('L')
+        # Update T3 level after 3 results
+        if len(st.session_state.t3_results) == 3:
+            wins = st.session_state.t3_results.count('W')
+            losses = st.session_state.t3_results.count('L')
+            if wins > losses:
+                st.session_state.t3_level = max(1, st.session_state.t3_level - 1)
+            elif losses > wins:
+                st.session_state.t3_level += 1
+            st.session_state.t3_results = []
+        # Ensure bet doesn't exceed bankroll
+        if bet_amount > st.session_state.result_tracker + st.session_state.initial_bankroll:
+            bet_amount = 0
+            st.session_state.alerts.append({"type": "warning", "message": "Bet skipped: Insufficient bankroll.", "id": str(uuid.uuid4())})
+
+    # Update bet amount for next round
+    st.session_state.bet_amount = st.session_state.base_amount if st.session_state.betting_strategy == "Flatbet" else st.session_state.base_amount * st.session_state.t3_level
+
+    return bet_amount, bet_outcome
 
 def record_result(result):
     """Record a game result and update state with Dominant Pairs betting logic."""
+    # Check stop loss and win limit
+    if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
+        st.session_state.alerts.append({"type": "warning", "message": f"Stop-loss reached ({st.session_state.stop_loss*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
+        return
+    if st.session_state.result_tracker >= st.session_state.initial_bankroll * st.session_state.win_limit:
+        st.session_state.alerts.append({"type": "success", "message": f"Win limit reached ({st.session_state.win_limit*100:.0f}%). Session paused.", "id": str(uuid.uuid4())})
+        return
+
     # Save current state before modifications for undo
     state = {
         'pair_types': list(st.session_state.pair_types),
@@ -98,7 +164,10 @@ def record_result(result):
         'next_prediction': st.session_state.next_prediction,
         'current_dominance': st.session_state.current_dominance,
         'bet_amount': st.session_state.bet_amount,
-        'max_profit': st.session_state.max_profit
+        'max_profit': st.session_state.max_profit,
+        't3_level': st.session_state.t3_level,
+        't3_results': st.session_state.t3_results.copy(),
+        'betting_strategy': st.session_state.betting_strategy
     }
     st.session_state.state_history.append(state)
 
@@ -150,40 +219,47 @@ def record_result(result):
         if len(st.session_state.pair_types) >= 6:
             previous_prediction = st.session_state.state_history[-1]['next_prediction']
             if previous_prediction != "N/A":
-                if (previous_prediction == "Player" and result == "P") or \
-                   (previous_prediction == "Banker" and result == "B"):
-                    # Win: Bet on predicted side was correct
-                    st.session_state.result_tracker += st.session_state.bet_amount
-                    st.session_state.stats['wins'] += 1
-                    if st.session_state.result_tracker >= st.session_state.profit_lock_threshold:
-                        lock_amount = st.session_state.result_tracker
-                        st.session_state.profit_lock += lock_amount
-                        st.session_state.result_tracker = 0.0  # Reset bankroll
-                        st.session_state.bet_amount = st.session_state.base_amount  # Continue betting with base amount
-                        st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Continuing with ${st.session_state.bet_amount:.2f} bet.", "id": str(uuid.uuid4())})
-                    elif st.session_state.result_tracker > st.session_state.max_profit:
-                        st.session_state.max_profit = st.session_state.result_tracker
-                        st.session_state.bet_amount = st.session_state.base_amount  # Reset to base
-                        st.session_state.alerts.append({"type": "success", "message": f"New max profit: ${st.session_state.max_profit:.2f}", "id": str(uuid.uuid4())})
-                else:
-                    # Loss: Bet on predicted side was incorrect
-                    st.session_state.result_tracker -= st.session_state.bet_amount
-                    st.session_state.stats['losses'] += 1
-                    st.session_state.bet_amount += st.session_state.base_amount  # Increase bet
-                    st.session_state.alerts.append({"type": "error", "message": f"Loss! -${st.session_state.bet_amount:.2f}", "id": str(uuid.uuid4())})
+                bet_amount, _ = apply_betting_strategy(None, result)  # Get bet amount
+                if bet_amount > 0:
+                    if (previous_prediction == "Player" and result == "P") or \
+                       (previous_prediction == "Banker" and result == "B"):
+                        # Win: Bet on predicted side was correct
+                        win_amount = bet_amount * 0.95 if previous_prediction == "Banker" else bet_amount
+                        st.session_state.result_tracker += win_amount
+                        st.session_state.stats['wins'] += 1
+                        outcome = 'win'
+                        if st.session_state.result_tracker >= st.session_state.profit_lock_threshold:
+                            lock_amount = st.session_state.result_tracker
+                            st.session_state.profit_lock += lock_amount
+                            st.session_state.result_tracker = 0.0
+                            st.session_state.bet_amount = st.session_state.base_amount
+                            st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}.", "id": str(uuid.uuid4())})
+                        elif st.session_state.result_tracker > st.session_state.max_profit:
+                            st.session_state.max_profit = st.session_state.result_tracker
+                            st.session_state.alerts.append({"type": "success", "message": f"New max profit: ${st.session_state.max_profit:.2f}", "id": str(uuid.uuid4())})
+                    else:
+                        # Loss: Bet on predicted side was incorrect
+                        st.session_state.result_tracker -= bet_amount
+                        st.session_state.stats['losses'] += 1
+                        outcome = 'loss'
+                        st.session_state.alerts.append({"type": "error", "message": f"Loss! -${bet_amount:.2f}", "id": str(uuid.uuid4())})
 
-                # Update bet history
-                st.session_state.stats['bet_history'].append({
-                    'Bet': previous_prediction,
-                    'Result': result,
-                    'Amount': st.session_state.bet_amount,
-                    'Outcome': 'Win' if (previous_prediction == "Player" and result == "P") or \
-                                      (previous_prediction == "Banker" and result == "B") else 'Loss',
-                    'Bankroll': st.session_state.result_tracker
-                })
+                    # Apply betting strategy updates
+                    apply_betting_strategy(outcome, result)
+
+                    # Update bet history
+                    st.session_state.stats['bet_history'].append({
+                        'Bet': previous_prediction,
+                        'Result': result,
+                        'Amount': bet_amount,
+                        'Outcome': 'Win' if outcome == 'win' else 'Loss',
+                        'Bankroll': st.session_state.result_tracker,
+                        'Strategy': st.session_state.betting_strategy,
+                        'T3_Level': st.session_state.t3_level if st.session_state.betting_strategy == "T3" else None
+                    })
 
     st.session_state.previous_result = result
-    st.session_state.alerts.append({"type": "info", "message": f"Result {result} recorded. Next bet: {st.session_state.next_prediction}", "id": str(uuid.uuid4())})
+    st.session_state.alerts.append({"type": "info", "message": f"Result {result} recorded. Next bet: {st.session_state.next_prediction} (${st.session_state.bet_amount:.2f})", "id": str(uuid.uuid4())})
 
 def undo():
     """Undo the last action."""
@@ -202,6 +278,9 @@ def undo():
     st.session_state.current_dominance = last_state['current_dominance']
     st.session_state.bet_amount = last_state['bet_amount']
     st.session_state.max_profit = last_state['max_profit']
+    st.session_state.t3_level = last_state['t3_level']
+    st.session_state.t3_results = last_state['t3_results']
+    st.session_state.betting_strategy = last_state['betting_strategy']
     st.session_state.alerts.append({"type": "success", "message": "Last action undone.", "id": str(uuid.uuid4())})
 
 def simulate_games():
@@ -250,7 +329,7 @@ def main():
         .stButton>button:hover {
             background-color: #4F46E5;
         }
-        .stNumberInput input {
+        .stNumberInput input, .stSelectbox select {
             background-color: #23272A;
             color: white;
             border: 1px solid #4B5563;
@@ -361,7 +440,11 @@ def main():
         with st.expander("Settings", expanded=True):
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
-            st.button("Set Amount", on_click=set_base_amount)
+            st.selectbox("Betting Strategy", ["Flatbet", "T3"], key="strategy_select")
+            st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
+            if st.session_state.betting_strategy == "T3":
+                st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
+            st.button("Apply Settings", on_click=lambda: [set_base_amount(), set_betting_strategy()])
 
         with st.expander("Session Actions"):
             st.button("Reset Session", on_click=reset_all)
@@ -392,7 +475,7 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
 
-        # Result History (horizontal, 20 results, auto-scroll)
+        # Result History
         st.markdown('<h2>Result History</h2>', unsafe_allow_html=True)
         if st.session_state.results:
             recent_results = list(st.session_state.results)[-20:]
