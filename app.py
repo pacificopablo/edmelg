@@ -168,12 +168,10 @@ def apply_betting_strategy(outcome, result, bet_selection):
 
 def record_result(result):
     """Record a game result and update state with Dominant Pairs betting logic."""
-    # Check game limit for free users
     if not st.session_state.is_premium_user and st.session_state.game_count >= 50:
         st.session_state.alerts.append({"type": "error", "message": "Free tier limit of 50 games reached. <a href='https://x.ai/grok' target='_blank'>Upgrade to SuperGrok Plan</a> or reset session.", "id": str(uuid.uuid4())})
         return
 
-    # Check stop loss and win limit
     if st.session_state.initial_bankroll > 0:
         if st.session_state.result_tracker <= st.session_state.initial_bankroll * st.session_state.stop_loss:
             st.session_state.alerts.append({"type": "warning", "message": f"Stop-loss reached ({st.session_state.stop_loss*100:.0f}% of initial bankroll). Please reset betting to continue.", "id": str(uuid.uuid4())})
@@ -189,10 +187,8 @@ def record_result(result):
             st.session_state.alerts.append({"type": "success", "message": f"Win limit reached! Locked ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Please reset betting.", "id": str(uuid.uuid4())})
             return
 
-    # Increment game count
     st.session_state.game_count += 1
 
-    # Save current state before modifications for undo
     state = {
         'pair_types': list(st.session_state.pair_types),
         'results': list(st.session_state.results),
@@ -213,36 +209,30 @@ def record_result(result):
     }
     st.session_state.state_history.append(state)
 
-    # Handle Tie
     if result == 'T':
         st.session_state.stats['ties'] += 1
         st.session_state.previous_result = result
         st.session_state.alerts.append({"type": "info", "message": "Tie recorded.", "id": str(uuid.uuid4())})
         return
 
-    # Append result to results deque
     st.session_state.results.append(result)
 
-    # Handle first result or previous tie
     if st.session_state.previous_result is None or st.session_state.previous_result == 'T':
         st.session_state.previous_result = result
         st.session_state.next_prediction = "N/A"
         st.session_state.alerts.append({"type": "info", "message": f"Result {result} recorded.", "id": str(uuid.uuid4())})
         return
 
-    # Record pair
     pair = (st.session_state.previous_result, result)
     st.session_state.pair_types.append(pair)
     pair_type = "Even" if pair[0] == pair[1] else "Odd"
     st.session_state.stats['odd_pairs' if pair_type == "Odd" else 'even_pairs'] += 1
 
-    # Check for alternating pairs
     if len(st.session_state.pair_types) >= 2:
         last_two_pairs = list(st.session_state.pair_types)[-2:]
         if last_two_pairs[0][1] != last_two_pairs[1][1]:
             st.session_state.stats['alternating_pairs'] += 1
 
-    # Update dominance and prediction after 5 pairs
     if len(st.session_state.pair_types) >= 5:
         odd_count = st.session_state.stats['odd_pairs']
         even_count = st.session_state.stats['even_pairs']
@@ -253,19 +243,16 @@ def record_result(result):
             st.session_state.current_dominance = "Even"
             st.session_state.next_prediction = "Player" if result == "P" else "Banker"
 
-        # Initialize bet amount if not set
         if st.session_state.bet_amount == 0.0:
             st.session_state.bet_amount = min(st.session_state.base_amount, st.session_state.result_tracker)
 
-        # Tally wager and bankroll based on previous prediction (after 6 pairs)
         if len(st.session_state.pair_types) >= 6:
             previous_prediction = st.session_state.state_history[-1]['next_prediction']
             if previous_prediction != "N/A":
-                bet_amount, _ = apply_betting_strategy(None, result, previous_prediction)  # Get bet amount
+                bet_amount, _ = apply_betting_strategy(None, result, previous_prediction)
                 if bet_amount > 0:
                     if (previous_prediction == "Player" and result == "P") or \
                        (previous_prediction == "Banker" and result == "B"):
-                        # Win: Bet on predicted side was correct
                         win_amount = bet_amount * 0.95 if previous_prediction == "Banker" else bet_amount
                         st.session_state.result_tracker += win_amount
                         st.session_state.session_profit += win_amount
@@ -284,8 +271,7 @@ def record_result(result):
                             st.session_state.max_profit = st.session_state.session_profit
                             st.session_state.alerts.append({"type": "success", "message": f"New max profit: ${st.session_state.max_profit:.2f}", "id": str(uuid.uuid4())})
                     else:
-                        # Loss: Bet on predicted side was incorrect
-                        bet_amount = min(bet_amount, st.session_state.result_tracker)  # Prevent negative bankroll
+                        bet_amount = min(bet_amount, st.session_state.result_tracker)
                         st.session_state.result_tracker -= bet_amount
                         st.session_state.session_profit -= bet_amount
                         st.session_state.stats['losses'] += 1
@@ -295,10 +281,8 @@ def record_result(result):
                             st.session_state.alerts.append({"type": "error", "message": "Bankroll depleted! Please reset betting to continue.", "id": str(uuid.uuid4())})
                             return
 
-                    # Apply T3 betting strategy updates
                     apply_betting_strategy(outcome, result, previous_prediction)
 
-                    # Update bet history
                     st.session_state.stats['bet_history'].append({
                         'Bet': previous_prediction,
                         'Result': result,
@@ -375,10 +359,8 @@ def clear_alerts():
 
 def main():
     """Main Streamlit application."""
-    # Initialize session state
     initialize_session_state()
 
-    # Custom CSS with Tailwind CDN
     st.markdown("""
         <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
         <style>
@@ -395,14 +377,14 @@ def main():
             margin-bottom: 1rem;
         }
         .card-player {
-            background-color: #3B82F6; /* Blue for Player */
+            background-color: #3B82F6;
             border-radius: 0.75rem;
             padding: 1.5rem;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
             margin-bottom: 1rem;
         }
         .card-banker {
-            background-color: #EF4444; /* Red for Banker */
+            background-color: #EF4444;
             border-radius: 0.75rem;
             padding: 1.5rem;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
@@ -505,13 +487,13 @@ def main():
             color: white;
         }
         .result-p {
-            background-color: #3B82F6; /* Blue for Player */
+            background-color: #3B82F6;
         }
         .result-b {
-            background-color: #EF4444; /* Red for Banker */
+            background-color: #EF4444;
         }
         .result-t {
-            background-color: #10B981; /* Green for Tie */
+            background-color: #10B981;
         }
         .badge-premium {
             background-color: #FBBF24;
@@ -521,26 +503,28 @@ def main():
             font-size: 0.75rem;
             font-weight: bold;
         }
+        .strategy-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #D1D5DB;
+            margin-bottom: 0.5rem;
+        }
         </style>
     """, unsafe_allow_html=True)
 
-    # Alert container
     alert_container = st.container()
     with alert_container:
-        for alert in st.session_state.alerts[-3:]:  # Show up to 3 recent alerts
+        for alert in st.session_state.alerts[-3:]:
             alert_class = f"alert alert-{alert['type'].lower()}"
             st.markdown(f'<div class="{alert_class}" style="word-wrap: break-word;">{alert["message"]}</div>', unsafe_allow_html=True)
         if st.session_state.alerts:
             if st.button("Clear Alerts"):
                 clear_alerts()
 
-    # Title
     st.markdown('<h1>Baccarat Tracker</h1>', unsafe_allow_html=True)
 
-    # Sidebar for controls
     with st.sidebar:
         st.markdown('<h2>Controls</h2>', unsafe_allow_html=True)
-        # Display subscription status
         if st.session_state.is_premium_user:
             st.markdown('<p class="badge-premium">SuperGrok Plan</p>', unsafe_allow_html=True)
         else:
@@ -550,8 +534,9 @@ def main():
             st.number_input("Initial Bankroll ($10-$10000)", min_value=10.0, max_value=10000.0, value=st.session_state.initial_bankroll, step=10.0, key="initial_bankroll_input")
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
+            st.markdown('<p class="strategy-label">Select Betting Strategy</p>', unsafe_allow_html=True)
             strategy_options = ["Flatbet", "T3"] if st.session_state.is_premium_user else ["Flatbet"]
-            st.selectbox("Betting Strategy", strategy_options, key="strategy_select")
+            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. T3: Dynamic bet sizing based on win/loss patterns (premium only).")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
@@ -563,12 +548,10 @@ def main():
             st.button("New Session", on_click=lambda: [reset_all(), st.session_state.alerts.append({"type": "success", "message": "New session started.", "id": str(uuid.uuid4())})])
             st.button("Simulate 100 Games", on_click=simulate_games, disabled=not st.session_state.is_premium_user)
 
-    # Main content with card layout
     with st.container():
         st.markdown('<h2>Overview</h2>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         with col1:
-            # Determine the card class for Next Bet based on prediction
             next_bet_class = "card"
             if st.session_state.next_prediction == "Player":
                 next_bet_class = "card-player"
@@ -598,7 +581,6 @@ def main():
                 </div>
             """, unsafe_allow_html=True)
 
-        # Result History
         st.markdown('<h2>Result History</h2>', unsafe_allow_html=True)
         if st.session_state.results:
             recent_results = list(st.session_state.results)[-20:]
@@ -626,7 +608,6 @@ def main():
         else:
             st.markdown('<p class="text-gray-400">No results yet.</p>', unsafe_allow_html=True)
 
-        # Result input buttons
         st.markdown('<h2>Record Result</h2>', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -638,7 +619,6 @@ def main():
         with col4:
             st.button("Undo", on_click=undo)
 
-        # Deal History
         st.markdown('<h2>Deal History</h2>', unsafe_allow_html=True)
         if st.session_state.pair_types:
             history_data = [
@@ -649,7 +629,6 @@ def main():
         else:
             st.markdown('<p class="text-gray-400">No history yet.</p>', unsafe_allow_html=True)
 
-        # Statistics
         total_games = st.session_state.stats['wins'] + st.session_state.stats['losses']
         win_rate = (st.session_state.stats['wins'] / total_games * 100) if total_games > 0 else 0
         avg_streak = sum(st.session_state.stats['streaks']) / len(st.session_state.stats['streaks']) if st.session_state.stats['streaks'] else 0
@@ -662,7 +641,6 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        # Bet History
         st.markdown('<h2>Bet History</h2>', unsafe_allow_html=True)
         if st.session_state.stats.get('bet_history'):
             bet_history = pd.DataFrame(st.session_state.stats['bet_history'])
