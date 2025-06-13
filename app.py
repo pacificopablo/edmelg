@@ -144,11 +144,11 @@ def apply_betting_strategy(outcome, result, bet_selection):
             if outcome == 'win':
                 new_bankroll = st.session_state.result_tracker + (bet_amount * 0.95 if bet_selection == "Banker" else bet_amount)
                 st.session_state.flatbet_net_loss += bet_amount  # Net loss decreases with a win
-                if st.session_state.flatbet_net_loss >= 0 or new_bankroll >= st.session_state.peak_bankroll:
+                if st.session_state.flatbet_net_loss >= 0 or (new_bankroll >= st.session_state.peak_bankroll and st.session_state.session_profit >= 0):
                     st.session_state.flatbet_level = 1
                     st.session_state.flatbet_net_loss = 0.0
-                    if new_bankroll >= st.session_state.peak_bankroll:
-                        st.session_state.alerts.append({"type": "success", "message": f"Bankroll reached peak (${new_bankroll:.2f}). Flatbet Level reset to 1.", "id": str(uuid.uuid4())})
+                    if new_bankroll >= st.session_state.peak_bankroll and st.session_state.session_profit >= 0:
+                        st.session_state.alerts.append({"type": "success", "message": f"Bankroll reached peak (${new_bankroll:.2f}) with profit. Flatbet Level reset to 1.", "id": str(uuid.uuid4())})
             elif outcome == 'loss':
                 st.session_state.flatbet_net_loss -= bet_amount  # Net loss increases with a loss
                 threshold = -5.0 * st.session_state.flatbet_level * st.session_state.base_amount
@@ -438,7 +438,7 @@ def main():
             border-radius: 0.5rem;
             padding: 0.75rem 1.5rem;
             font-weight: 600;
-            transition: background-color 0.2s;
+            transition: background-color: 0.2s;
             width: 100%;
         }
         .stButton>button:hover {
@@ -566,7 +566,7 @@ def main():
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
             st.markdown('<p class="strategy-label">Select Betting Strategy</p>', unsafe_allow_html=True)
             strategy_options = ["Flatbet", "Flatbet Level Up", "T3"]
-            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. Flatbet Level Up: Increases bet level after significant losses, resets to level 1 at peak bankroll. T3: Dynamic bet sizing based on win/loss patterns.")
+            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. Flatbet Level Up: Increases bet level after significant losses, resets to level 1 at peak bankroll with profit or when net loss is recovered. T3: Dynamic bet sizing based on win/loss patterns.")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
