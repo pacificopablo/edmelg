@@ -35,6 +35,8 @@ def initialize_session_state():
         st.session_state.betting_strategy = "Flatbet"
         st.session_state.t3_level = 1
         st.session_state.t3_results = []
+        st.session_state.flatbet_level = 1  # Flatbet Level Up level
+        st.session_state.flatbet_net_loss = 0.0  # Track net loss for Flatbet Level Up
         st.session_state.stop_loss = 0.8  # Stop at 80% of initial bankroll
         st.session_state.win_limit = 1.5  # Win at 150% of initial bankroll
         st.session_state.initial_bankroll = 1000.0  # Default initial bankroll
@@ -70,6 +72,9 @@ def set_betting_strategy():
     if st.session_state.betting_strategy == "T3":
         st.session_state.t3_level = 1
         st.session_state.t3_results = []
+    elif st.session_state.betting_strategy == "Flatbet Level Up":
+        st.session_state.flatbet_level = 1
+        st.session_state.flatbet_net_loss = 0.0
     st.session_state.bet_amount = st.session_state.base_amount
     st.session_state.alerts.append({"type": "success", "message": f"Betting strategy set to {st.session_state.betting_strategy}.", "id": str(uuid.uuid4())})
 
@@ -83,6 +88,8 @@ def reset_betting():
     st.session_state.current_dominance = "N/A"
     st.session_state.t3_level = 1
     st.session_state.t3_results = []
+    st.session_state.flatbet_level = 1
+    st.session_state.flatbet_net_loss = 0.0
     st.session_state.game_count = 0
     st.session_state.alerts.append({"type": "success", "message": "Betting parameters reset.", "id": str(uuid.uuid4())})
 
@@ -114,6 +121,8 @@ def reset_all():
     st.session_state.betting_strategy = "Flatbet"
     st.session_state.t3_level = 1
     st.session_state.t3_results = []
+    st.session_state.flatbet_level = 1
+    st.session_state.flatbet_net_loss = 0.0
     st.session_state.initial_bankroll = 1000.0
     st.session_state.game_count = 0
     st.session_state.alerts.append({"type": "success", "message": "All session data reset, profit lock reset.", "id": str(uuid.uuid4())})
@@ -125,6 +134,23 @@ def apply_betting_strategy(outcome, result, bet_selection):
 
     if st.session_state.betting_strategy == "Flatbet":
         bet_amount = min(st.session_state.base_amount, st.session_state.result_tracker)
+    elif st.session_state.betting_strategy == "Flatbet Level Up":
+        bet_amount = min(st.session_state.base_amount * st.session_state.flatbet_level, st.session_state.result_tracker)
+        if outcome:
+            if outcome == 'win':
+                st.session_state.flatbet_net_loss += bet_amount  # Net loss decreases with a win
+                if st.session_state.flatbet_net_loss >= 0:  # Reset level if net loss becomes non-negative
+                    st.session_state.flatbet_level = 1
+                    st.session_state.flatbet_net_loss = 0.0
+            elif outcome == 'loss':
+                st.session_state.flatbet_net_loss -= bet_amount  # Net loss increases with a loss
+                threshold = -5.0 * st.session_state.flatbet_level * st.session_state.base_amount
+                if st.session_state.flatbet_net_loss <= threshold:
+                    st.session_state.flatbet_level += 1
+                    st.session_state.flatbet_net_loss = 0.0  # Reset net loss after leveling up
+        # Ensure bet_amount is updated for the next bet
+        next_bet = st.session_state.base_amount * st.session_state.flatbet_level
+        st.session_state.bet_amount = min(next_bet, st.session_state.result_tracker)
     elif st.session_state.betting_strategy == "T3":
         proposed_bet = st.session_state.base_amount * st.session_state.t3_level
         bet_amount = min(proposed_bet, st.session_state.result_tracker)
@@ -156,7 +182,12 @@ def apply_betting_strategy(outcome, result, bet_selection):
         st.session_state.t3_level = min(st.session_state.t3_level, max(1, int(max_t3_bet)))
 
     # Update bet amount for next round
-    next_bet = st.session_state.base_amount if st.session_state.betting_strategy == "Flatbet" else st.session_state.base_amount * st.session_state.t3_level
+    if st.session_state.betting_strategy == "Flatbet":
+        next_bet = st.session_state.base_amount
+    elif st.session_state.betting_strategy == "Flatbet Level Up":
+        next_bet = st.session_state.base_amount * st.session_state.flatbet_level
+    else:  # T3
+        next_bet = st.session_state.base_amount * st.session_state.t3_level
     st.session_state.bet_amount = min(next_bet, st.session_state.result_tracker)
 
     return bet_amount, bet_outcome
@@ -175,6 +206,8 @@ def record_result(result):
             st.session_state.bet_amount = st.session_state.base_amount
             st.session_state.t3_level = 1
             st.session_state.t3_results = []
+            st.session_state.flatbet_level = 1
+            st.session_state.flatbet_net_loss = 0.0
             st.session_state.alerts.append({"type": "success", "message": f"Win limit reached! Locked ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}. Please reset betting.", "id": str(uuid.uuid4())})
             return
 
@@ -195,6 +228,8 @@ def record_result(result):
         't3_level': st.session_state.t3_level,
         't3_results': st.session_state.t3_results.copy(),
         'betting_strategy': st.session_state.betting_strategy,
+        'flatbet_level': st.session_state.flatbet_level,
+        'flatbet_net_loss': st.session_state.flatbet_net_loss,
         'initial_bankroll': st.session_state.initial_bankroll,
         'game_count': st.session_state.game_count
     }
@@ -257,6 +292,8 @@ def record_result(result):
                             st.session_state.bet_amount = st.session_state.base_amount
                             st.session_state.t3_level = 1
                             st.session_state.t3_results = []
+                            st.session_state.flatbet_level = 1
+                            st.session_state.flatbet_net_loss = 0.0
                             st.session_state.alerts.append({"type": "success", "message": f"Profit locked at ${lock_amount:.2f}. Total locked: ${st.session_state.profit_lock:.2f}.", "id": str(uuid.uuid4())})
                         elif st.session_state.session_profit > st.session_state.max_profit:
                             st.session_state.max_profit = st.session_state.session_profit
@@ -282,7 +319,8 @@ def record_result(result):
                         'Bankroll': st.session_state.result_tracker,
                         'Profit': st.session_state.session_profit,
                         'Strategy': st.session_state.betting_strategy,
-                        'T3_Level': st.session_state.t3_level if st.session_state.betting_strategy == "T3" else None
+                        'T3_Level': st.session_state.t3_level if st.session_state.betting_strategy == "T3" else None,
+                        'Flatbet_Level': st.session_state.flatbet_level if st.session_state.betting_strategy == "Flatbet Level Up" else None
                     })
 
     st.session_state.previous_result = result
@@ -309,6 +347,8 @@ def undo():
     st.session_state.t3_level = last_state['t3_level']
     st.session_state.t3_results = last_state['t3_results']
     st.session_state.betting_strategy = last_state['betting_strategy']
+    st.session_state.flatbet_level = last_state['flatbet_level']
+    st.session_state.flatbet_net_loss = last_state['flatbet_net_loss']
     st.session_state.initial_bankroll = last_state['initial_bankroll']
     st.session_state.game_count = last_state['game_count']
     st.session_state.alerts.append({"type": "success", "message": "Last action undone.", "id": str(uuid.uuid4())})
@@ -332,6 +372,8 @@ def simulate_games():
             st.session_state.bet_amount = st.session_state.base_amount
             st.session_state.t3_level = 1
             st.session_state.t3_results = []
+            st.session_state.flatbet_level = 1
+            st.session_state.flatbet_net_loss = 0.0
             st.session_state.alerts.append({"type": "success", "message": f"Win limit reached during simulation! Locked ${lock_amount:.2f}.", "id": str(uuid.uuid4())})
             break
         result = random.choices(outcomes, weights)[0]
@@ -508,11 +550,13 @@ def main():
             st.number_input("Base Amount ($1-$100)", min_value=1.0, max_value=100.0, value=st.session_state.base_amount, step=1.0, key="base_amount_input")
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
             st.markdown('<p class="strategy-label">Select Betting Strategy</p>', unsafe_allow_html=True)
-            strategy_options = ["Flatbet", "T3"]
-            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. T3: Dynamic bet sizing based on win/loss patterns.")
+            strategy_options = ["Flatbet", "Flatbet Level Up", "T3"]
+            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. Flatbet Level Up: Increases bet level after significant losses. T3: Dynamic bet sizing based on win/loss patterns.")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
+            elif st.session_state.betting_strategy == "Flatbet Level Up":
+                st.markdown(f'<p class="text-sm text-gray-400">Flatbet Level: {st.session_state.flatbet_level}</p>', unsafe_allow_html=True)
             st.button("Apply Money Management", on_click=lambda: [set_money_management(), set_betting_strategy()])
 
         with st.expander("Session Actions"):
