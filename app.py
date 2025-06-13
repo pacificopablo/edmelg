@@ -11,6 +11,7 @@ def initialize_session_state():
         st.session_state.results = deque(maxlen=200)  # Store raw results
         st.session_state.base_amount = 10.0
         st.session_state.result_tracker = 1000.0  # Start with initial bankroll
+        st.session_state.peak_bankroll = 1000.0  # Track highest bankroll
         st.session_state.session_profit = 0.0  # Track profits separately
         st.session_state.profit_lock = 0.0
         st.session_state.previous_result = None
@@ -54,6 +55,7 @@ def set_money_management():
                 st.session_state.base_amount = base_amount
                 st.session_state.initial_bankroll = initial_bankroll
                 st.session_state.result_tracker = initial_bankroll
+                st.session_state.peak_bankroll = initial_bankroll
                 st.session_state.session_profit = 0.0
                 st.session_state.profit_lock_threshold = 2 * base_amount
                 st.session_state.bet_amount = base_amount
@@ -81,6 +83,7 @@ def set_betting_strategy():
 def reset_betting():
     """Reset betting parameters."""
     st.session_state.result_tracker = st.session_state.initial_bankroll
+    st.session_state.peak_bankroll = st.session_state.initial_bankroll
     st.session_state.session_profit = 0.0
     st.session_state.bet_amount = st.session_state.base_amount
     st.session_state.max_profit = 0.0
@@ -98,6 +101,7 @@ def reset_all():
     st.session_state.pair_types = deque(maxlen=100)
     st.session_state.results = deque(maxlen=200)
     st.session_state.result_tracker = 1000.0
+    st.session_state.peak_bankroll = 1000.0
     st.session_state.session_profit = 0.0
     st.session_state.profit_lock = 0.0
     st.session_state.base_amount = 10.0
@@ -138,10 +142,13 @@ def apply_betting_strategy(outcome, result, bet_selection):
         bet_amount = min(st.session_state.base_amount * st.session_state.flatbet_level, st.session_state.result_tracker)
         if outcome:
             if outcome == 'win':
+                new_bankroll = st.session_state.result_tracker + (bet_amount * 0.95 if bet_selection == "Banker" else bet_amount)
                 st.session_state.flatbet_net_loss += bet_amount  # Net loss decreases with a win
-                if st.session_state.flatbet_net_loss >= 0:  # Reset level if net loss becomes non-negative
+                if st.session_state.flatbet_net_loss >= 0 or new_bankroll >= st.session_state.peak_bankroll:
                     st.session_state.flatbet_level = 1
                     st.session_state.flatbet_net_loss = 0.0
+                    if new_bankroll >= st.session_state.peak_bankroll:
+                        st.session_state.alerts.append({"type": "success", "message": f"Bankroll reached peak (${new_bankroll:.2f}). Flatbet Level reset to 1.", "id": str(uuid.uuid4())})
             elif outcome == 'loss':
                 st.session_state.flatbet_net_loss -= bet_amount  # Net loss increases with a loss
                 threshold = -5.0 * st.session_state.flatbet_level * st.session_state.base_amount
@@ -203,6 +210,7 @@ def record_result(result):
             st.session_state.profit_lock += lock_amount
             st.session_state.session_profit = 0.0
             st.session_state.result_tracker = st.session_state.initial_bankroll
+            st.session_state.peak_bankroll = st.session_state.initial_bankroll
             st.session_state.bet_amount = st.session_state.base_amount
             st.session_state.t3_level = 1
             st.session_state.t3_results = []
@@ -218,6 +226,7 @@ def record_result(result):
         'results': list(st.session_state.results),
         'previous_result': st.session_state.previous_result,
         'result_tracker': st.session_state.result_tracker,
+        'peak_bankroll': st.session_state.peak_bankroll,
         'session_profit': st.session_state.session_profit,
         'profit_lock': st.session_state.profit_lock,
         'stats': st.session_state.stats.copy(),
@@ -289,6 +298,7 @@ def record_result(result):
                             st.session_state.profit_lock += lock_amount
                             st.session_state.session_profit = 0.0
                             st.session_state.result_tracker = st.session_state.initial_bankroll
+                            st.session_state.peak_bankroll = st.session_state.initial_bankroll
                             st.session_state.bet_amount = st.session_state.base_amount
                             st.session_state.t3_level = 1
                             st.session_state.t3_results = []
@@ -310,6 +320,9 @@ def record_result(result):
                             return
 
                     apply_betting_strategy(outcome, result, previous_prediction)
+
+                    # Update peak bankroll after the bet
+                    st.session_state.peak_bankroll = max(st.session_state.peak_bankroll, st.session_state.result_tracker)
 
                     st.session_state.stats['bet_history'].append({
                         'Bet': previous_prediction,
@@ -337,6 +350,7 @@ def undo():
     st.session_state.results = deque(last_state['results'], maxlen=200)
     st.session_state.previous_result = last_state['previous_result']
     st.session_state.result_tracker = last_state['result_tracker']
+    st.session_state.peak_bankroll = last_state['peak_bankroll']
     st.session_state.session_profit = last_state['session_profit']
     st.session_state.profit_lock = last_state['profit_lock']
     st.session_state.stats = last_state['stats']
@@ -369,6 +383,7 @@ def simulate_games():
             st.session_state.profit_lock += lock_amount
             st.session_state.session_profit = 0.0
             st.session_state.result_tracker = st.session_state.initial_bankroll
+            st.session_state.peak_bankroll = st.session_state.initial_bankroll
             st.session_state.bet_amount = st.session_state.base_amount
             st.session_state.t3_level = 1
             st.session_state.t3_results = []
@@ -551,7 +566,7 @@ def main():
             st.markdown(f'<p class="text-sm text-gray-400">Profit Lock Threshold: ${st.session_state.profit_lock_threshold:.2f} (2x Base)</p>', unsafe_allow_html=True)
             st.markdown('<p class="strategy-label">Select Betting Strategy</p>', unsafe_allow_html=True)
             strategy_options = ["Flatbet", "Flatbet Level Up", "T3"]
-            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. Flatbet Level Up: Increases bet level after significant losses. T3: Dynamic bet sizing based on win/loss patterns.")
+            st.selectbox("Betting Strategy", strategy_options, key="strategy_select", help="Flatbet: Fixed bet amount. Flatbet Level Up: Increases bet level after significant losses, resets to level 1 at peak bankroll. T3: Dynamic bet sizing based on win/loss patterns.")
             st.markdown(f'<p class="text-sm text-gray-400">Current Strategy: {st.session_state.betting_strategy}</p>', unsafe_allow_html=True)
             if st.session_state.betting_strategy == "T3":
                 st.markdown(f'<p class="text-sm text-gray-400">T3 Level: {st.session_state.t3_level}, Results: {st.session_state.t3_results}</p>', unsafe_allow_html=True)
